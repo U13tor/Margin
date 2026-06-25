@@ -45,6 +45,11 @@ jobs:
         with:
           version: '6.5'
 
+      - name: Setup MSVC dev environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
       - name: Configure (Release)
         shell: bash
         run: cmake --preset win64-msvc-release
