@@ -1,0 +1,9 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+    <qresource prefix="/aura">
+        <file>qml/AuraTab.qml</file>
+        <file>qml/AuraSettingsPage.qml</file>
+        <file>qml/SignalStrengthBar.qml</file>
+        <file>icons/aura-tab.svg</file>
+    </qresource>
+</RCC>

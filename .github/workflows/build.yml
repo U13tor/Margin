@@ -1,0 +1,97 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build & Test (${{ matrix.os }} / ${{ matrix.config }})
+    strategy:
+      fail-fast: false
+      matrix:
+        # macOS CI is deferred — Stage 9 cuts the macOS backend.
+        # Re-add `macos-latest` here when the macOS port lands.
+        os: [windows-latest]
+        config: [Debug, Release]
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 1
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: ${{ runner.workspace }}/vcpkg
+
+      - name: Setup Qt (online installer)
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: '6.5'
+          # Qt 6 起 qtdeclarative / qtsvg 是核心模块,随 base 自动装;
+          # modules 字段留给 add-on(qtcharts / qtmultimedia 等),M0–M3 用不到。
+
+      - name: Select preset
+        id: preset
+        shell: bash
+        run: |
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            echo "name=win64-msvc-${{ matrix.config == 'Debug' && 'debug' || 'release' }}" >> $GITHUB_OUTPUT
+          else
+            echo "name=macos-clang-${{ matrix.config == 'Debug' && 'debug' || 'release' }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Configure
+        shell: bash
+        run: cmake --preset ${{ steps.preset.outputs.name }}
+
+      - name: Build
+        shell: bash
+        run: cmake --build build/${{ steps.preset.outputs.name }}
+
+      - name: Static Audit (zero-network + no placeholder/XOR in src/)
+        shell: bash
+        run: |
+          if [ -d src/ ]; then
+            if grep -rEIi "placeholder|XOR" src/; then
+              echo "::error::placeholder or XOR found in src/ (see docs/13-lessons-learned.md)"
+              exit 1
+            fi
+            if grep -rEn "QNetworkAccessManager|QNetworkRequest" src/; then
+              echo "::error::Qt network classes found in src/ (violates §5.1 zero-network)"
+              exit 1
+            fi
+          fi
+
+      - name: Unit tests
+        shell: bash
+        run: ctest --test-dir build/${{ steps.preset.outputs.name }} -L unit --output-on-failure
+
+      - name: Integration tests
+        shell: bash
+        run: ctest --test-dir build/${{ steps.preset.outputs.name }} -L integration --output-on-failure
+
+      - name: Smoke tests
+        shell: bash
+        # --no-tests=ignore: smoke is Windows-only until C6 (macOS Keychain);
+        # the macOS job has no smoke-labelled tests and must not fail on that.
+        run: ctest --test-dir build/${{ steps.preset.outputs.name }} -L smoke --output-on-failure --no-tests=ignore
+
+      - name: Upload build artifacts (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs-${{ matrix.os }}-${{ matrix.config }}
+          path: |
+            build/
+            !build/**/vcpkg_installed/
+          retention-days: 7

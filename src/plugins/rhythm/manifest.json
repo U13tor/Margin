@@ -1,0 +1,20 @@
+{
+  "manifest_version": 1,
+  "id": "rhythm",
+  "name": "Rhythm & Health",
+  "version": "0.1.0",
+  "description": "Pomodoro work/break timer with guided stretch breaks and Aura Locker integration.",
+  "author": "Margin Team",
+  "min_host_version": "0.1.0",
+  "abi_version": "0.2.0",
+  "entry_point": "margin_plugin_entry",
+  "priority": 40,
+  "permissions": ["input-monitor", "notification-show"],
+  "encrypted_settings": [],
+  "events": {
+    "publish": ["margin.rhythm.break_due", "margin.rhythm.break_started", "margin.rhythm.break_dismissed"],
+    "subscribe": ["margin.aura.away", "margin.aura.back"]
+  },
+  "settings_page_qml": "qml/RhythmSettingsPage.qml",
+  "ui_contributions": ["TrayMenuContributor", "DashboardTabContributor", "SettingsPageContributor"]
+}

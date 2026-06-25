@@ -1,0 +1,15 @@
+{
+  "manifest_version": 1,
+  "id": "zlast",
+  "name": "ZLast (test fixture, priority 10)",
+  "version": "0.1.0",
+  "description": "Second fixture for the load-order test; priority 10 loads before fake(100)",
+  "author": "Margin Team",
+  "min_host_version": "0.1.0",
+  "abi_version": "0.2.0",
+  "entry_point": "margin_plugin_entry",
+  "priority": 10,
+  "permissions": [],
+  "events": { "publish": [], "subscribe": [] },
+  "ui_contributions": []
+}

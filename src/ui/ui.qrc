@@ -1,0 +1,14 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+    <qresource prefix="/ui">
+        <file>DashboardWindow.qml</file>
+        <file>SettingsWindow.qml</file>
+        <file>SettingsGeneralPage.qml</file>
+        <file>SettingsAppearancePage.qml</file>
+        <file>SettingsAboutPage.qml</file>
+        <file>TabBar.qml</file>
+        <file>StatusBar.qml</file>
+        <file>OverviewTab.qml</file>
+        <file>OverlayContainer.qml</file>
+    </qresource>
+</RCC>

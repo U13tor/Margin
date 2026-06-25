@@ -1,0 +1,19 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+    <qresource prefix="/rhythm">
+        <file>qml/RhythmTab.qml</file>
+        <file>qml/RhythmSettingsPage.qml</file>
+        <file>qml/RhythmToast.qml</file>
+        <file>qml/BreakOverlay.qml</file>
+        <file>qml/NeckStretchAnimator.qml</file>
+        <file>icons/rhythm-tab.svg</file>
+        <file>icons/neck-stretch-1.png</file>
+        <file>icons/neck-stretch-2.png</file>
+        <file>icons/neck-stretch-3.png</file>
+        <file>icons/neck-stretch-4.png</file>
+        <file>icons/neck-stretch-5.png</file>
+        <file>icons/neck-stretch-6.png</file>
+        <file>icons/neck-stretch-7.png</file>
+        <file>icons/neck-stretch-8.png</file>
+    </qresource>
+</RCC>

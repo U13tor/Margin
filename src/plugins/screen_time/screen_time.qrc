@@ -1,0 +1,10 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+    <qresource prefix="/screen_time">
+        <file>qml/ScreenTimeTab.qml</file>
+        <file>qml/ScreenTimeSettingsPage.qml</file>
+        <file>qml/ExportClearDialog.qml</file>
+        <file>icons/screen-time-tab.svg</file>
+        <file>default_categories.json</file>
+    </qresource>
+</RCC>

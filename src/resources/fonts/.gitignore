@@ -1,0 +1,15 @@
+# M4-C2: TTF binaries + their OFL license text are fetched at configure time
+# by cmake/fetch_fonts.cmake from pinned GitHub release URLs (Inter v4.1 +
+# JetBrains Mono 2.304). They are NOT committed — keeps the repo small (the
+# ~1.4MB of font data lives only in the build env after first configure, and
+# the LICENSE text is regenerated from upstream on every fetch). The generated
+# fonts.qrc lives in CMAKE_BINARY_DIR, also not committed.
+#
+# To force a re-fetch: rm -rf src/resources/fonts/*.ttf src/resources/fonts/LICENSE-*.txt
+# && cmake <configure-args>.
+
+*.ttf
+LICENSE-Inter.txt
+LICENSE-JetBrainsMono.txt
+.Inter-*.zip
+.inter-extract/

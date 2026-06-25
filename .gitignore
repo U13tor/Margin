@@ -1,0 +1,51 @@
+# Build output
+build/
+out/
+cmake-build-*/
+
+# IDE / Editor
+.vscode/
+.idea/
+.vs/
+.claude/
+*.user
+*.suo
+*.sln
+*.sln.docstates
+*.userprefs
+.vimrc
+*.swp
+*.swo
+
+# Qt creator
+*.pro.user
+*.pro.user.*
+CMakeLists.txt.user*
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# vcpkg
+vcpkg_installed/
+
+# Logs / runtime
+*.log
+*.qmlc
+*.qmltc
+*.jsc
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Test artifacts
+Testing/
+*.xml.junit
+coverage/
+
+# Local-only dev launchers (Qt DLL PATH bootstrap etc.) — not for commit.
+run-dev-margin.bat
+dist/

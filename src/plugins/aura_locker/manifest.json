@@ -1,0 +1,23 @@
+{
+  "manifest_version": 1,
+  "id": "aura",
+  "name": "Aura Locker",
+  "version": "0.1.0",
+  "description": "Bluetooth proximity auto-lock — locks the screen when a paired device moves away.",
+  "author": "Margin Team",
+  "min_host_version": "0.1.0",
+  "abi_version": "0.2.0",
+  "entry_point": "margin_plugin_entry",
+  "priority": 20,
+  "permissions": ["bluetooth-scan", "system-lock", "database-read", "database-write"],
+  "encrypted_settings": [
+    "plugins.aura.paired_device_identifier",
+    "plugins.aura.device_name"
+  ],
+  "events": {
+    "publish": ["margin.aura.state", "margin.aura.away", "margin.aura.back", "margin.aura.warning"],
+    "subscribe": []
+  },
+  "settings_page_qml": "qml/AuraSettingsPage.qml",
+  "ui_contributions": ["TrayMenuContributor", "DashboardTabContributor", "SettingsPageContributor"]
+}

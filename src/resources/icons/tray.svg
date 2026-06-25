@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <defs>
+    <!-- Clip path to keep wave and glow strictly to the left of the cursor (x <= 17) -->
+    <clipPath id="waveClip">
+      <rect x="0" y="0" width="17" height="24" />
+    </clipPath>
+    <!-- Gradient for the wave (high contrast blue to vibrant pink) -->
+    <linearGradient id="w_waveGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#2563EB" stop-opacity="0.85" />
+      <stop offset="50%" stop-color="#7C3AED" stop-opacity="0.9" />
+      <stop offset="100%" stop-color="#EC4899" stop-opacity="1.0" />
+    </linearGradient>
+    <!-- Glow behind the cursor -->
+    <radialGradient id="w_cursorGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#EC4899" stop-opacity="0.8" />
+      <stop offset="100%" stop-color="#EC4899" stop-opacity="0" />
+    </radialGradient>
+    <!-- High contrast vertical gradient for the cursor (light purple to dark violet) -->
+    <linearGradient id="w_cursorGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#A78BFA" />
+      <stop offset="100%" stop-color="#6D28D9" />
+    </linearGradient>
+  </defs>
+  <!-- Group for wave and glow, clipped to the left of the vertical bar -->
+  <g clip-path="url(#waveClip)">
+    <!-- Breathing code wave line (width increased to 3px) -->
+    <path d="M 3 12 Q 6.5 8, 10 12 T 16 12" fill="none" stroke="url(#w_waveGrad)" stroke-width="3" stroke-linecap="round" />
+    <!-- Glow behind the cursor -->
+    <circle cx="17.5" cy="12" r="5" fill="url(#w_cursorGlow)" />
+  </g>
+  <!-- Vertical blinking cursor (width increased to 3px, high-contrast gradient) -->
+  <line x1="17.5" y1="5.5" x2="17.5" y2="18.5" stroke="url(#w_cursorGrad)" stroke-width="3" stroke-linecap="round" />
+</svg>

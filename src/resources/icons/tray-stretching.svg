@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <defs>
+    <!-- Clip path to keep clock and glow strictly to the left of the cursor (x <= 17) -->
+    <clipPath id="stretchClip">
+      <rect x="0" y="0" width="17" height="24" />
+    </clipPath>
+    <linearGradient id="stretchGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#34D399" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+    <radialGradient id="cursorGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#EC4899" stop-opacity="0.8" />
+      <stop offset="100%" stop-color="#EC4899" stop-opacity="0" />
+    </radialGradient>
+    <!-- High contrast vertical gradient for the cursor -->
+    <linearGradient id="w_cursorGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#A78BFA" />
+      <stop offset="100%" stop-color="#6D28D9" />
+    </linearGradient>
+  </defs>
+  <!-- Group for clock and glow, clipped to the left of the vertical bar -->
+  <g clip-path="url(#stretchClip)">
+    <!-- Clock/stretching indicator on the left (width increased to 2.2px for better presence) -->
+    <circle cx="8" cy="12" r="4.5" stroke="url(#stretchGrad)" stroke-width="2.2" fill="none" />
+    <path d="M 8 10 V 12 H 10" stroke="url(#stretchGrad)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+    <!-- Glow behind the cursor -->
+    <circle cx="17.5" cy="12" r="5" fill="url(#cursorGlow)" />
+  </g>
+  <!-- Vertical blinking cursor (width increased to 3px, high-contrast gradient) -->
+  <line x1="17.5" y1="5.5" x2="17.5" y2="18.5" stroke="url(#w_cursorGrad)" stroke-width="3" stroke-linecap="round" />
+</svg>

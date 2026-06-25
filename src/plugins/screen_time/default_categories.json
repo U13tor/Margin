@@ -1,0 +1,14 @@
+{
+  "rules": [
+    { "match": "Code.exe|Code - Insiders.exe|VSCodium.exe|idea64.exe|idea.exe|devenv.exe|rider64.exe|pycharm64.exe|goland64.exe|webstorm64.exe|rustrover64.exe|clion64.exe|phpstorm64.exe|rubymine64.exe|datagrip64.exe|studio64.exe|studio.exe|cursor.exe|Trae.exe|Qoder.exe|Windsurf.exe|Zed.exe|sublime_text.exe|neovim.exe|notepad\\+\\+.exe", "category": "Development" },
+    { "match": "chrome.exe|msedge.exe|firefox.exe|brave.exe|opera.exe|vivaldi.exe|Arc.exe", "category": "Browser" },
+    { "match": "Slack.exe|Discord.exe|WeChat.exe|WXWork.exe|Telegram.exe|Teams.exe|QQ.exe|DingTalk.exe|Feishu.exe|Lark.exe", "category": "Communication" },
+    { "match": "Spotify.exe|foobar2000.exe|vlc.exe|mpv.exe|PotPlayerMini64.exe|Music.exe|TV.exe", "category": "Media" },
+    { "match": "Explorer.exe|WinRAR.exe|7zFM.exe|TotalCMD64.exe", "category": "System" },
+    { "match": "WINWORD.exe|EXCEL.exe|POWERPNT.exe|ONENOTE.exe|OUTLOOK.exe|wps.exe|et.exe|wpp.exe", "category": "Office" },
+    { "match": "Notion.exe|Obsidian.exe|Typora.exe|Logseq.exe", "category": "Notes" },
+    { "match": "steam.exe|EpicGamesLauncher.exe|Battle.net.exe|GenshinImpact.exe|YuanShen.exe", "category": "Games" },
+    { "match": "photoshop.exe|Illustrator.exe|Premiere.exe|AfterFX.exe|Blender.exe|Figma.exe|GIMP.exe|Krita.exe", "category": "Design" },
+    { "match": "Terminal.exe|WindowsTerminal.exe|cmd.exe|powershell.exe|pwsh.exe|alacritty.exe|wezterm-gui.exe", "category": "Terminal" }
+  ]
+}

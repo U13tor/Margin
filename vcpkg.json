@@ -1,0 +1,10 @@
+{
+  "name": "margin",
+  "version-string": "0.1.0",
+  "description": "Margin / 息间 — a desktop rhythm conductor",
+  "homepage": "https://github.com/U13tor/Margin",
+  "license": "LGPL-3.0-or-later",
+  "dependencies": [
+    "openssl"
+  ]
+}

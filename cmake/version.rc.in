@@ -1,0 +1,52 @@
+// cmake/version.rc.in
+//
+// Windows VERSIONINFO resource for Margin.exe. configure_file()'d into
+// ${CMAKE_BINARY_DIR}/version.rc with @PROJECT_VERSION_*@ substituted, then
+// compiled as a source on the Margin target (see src/host/CMakeLists.txt).
+//
+// Why a separate .rc from src/resources/tray.rc:
+//   - tray.rc owns IDI_ICON1 (the .ico for the exe + tray)
+//   - version.rc owns VS_VERSION_INFO (FileVersion / ProductVersion /
+//     LegalCopyright shown in Explorer -> Properties -> Details)
+// Single-responsibility; merging would force re-configuring icon path on
+// every version bump.
+//
+// Strings are deliberately ASCII-only. We tried `#pragma code_page(65001)`
+// + UTF-8 with em dash / CJK, but CMake's cmcldeps (the RC dependency
+// scanner that wraps rc.exe with cl.exe preprocessing) rejects the pragma
+// and then can't locate <windows.h>. The Chinese product name "息间" is
+// shown via QML i18n in the UI; the .exe Properties panel stays ASCII.
+//
+// We avoid <windows.h> for the same cmcldeps reason. Macros that come from
+// winver.h are inlined as their numeric values:
+//   - VS_VERSION_INFO = 1 (the resource NAME Win32 GetFileVersionInfo looks for)
+//   - VFT_APP = 0x1L (FILETYPE for executable)
+
+1 VERSIONINFO
+ FILEVERSION @PROJECT_VERSION_MAJOR@,@PROJECT_VERSION_MINOR@,@PROJECT_VERSION_PATCH@,0
+ PRODUCTVERSION @PROJECT_VERSION_MAJOR@,@PROJECT_VERSION_MINOR@,@PROJECT_VERSION_PATCH@,0
+ FILEFLAGSMASK 0x3fL
+ FILEFLAGS 0x0L
+ FILEOS 0x40004L
+ FILETYPE 0x1L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"
+        BEGIN
+            VALUE "CompanyName", "Margin"
+            VALUE "FileDescription", "Margin - desktop rhythm conductor"
+            VALUE "FileVersion", "@PROJECT_VERSION@+build.@MARGIN_BUILD_STAMP@"
+            VALUE "InternalName", "Margin"
+            VALUE "LegalCopyright", "Margin contributors - LGPL-3.0-or-later"
+            VALUE "OriginalFilename", "Margin.exe"
+            VALUE "ProductName", "Margin"
+            VALUE "ProductVersion", "@PROJECT_VERSION@"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END

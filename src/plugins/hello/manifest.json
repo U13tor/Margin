@@ -1,0 +1,18 @@
+{
+  "manifest_version": 1,
+  "id": "hello",
+  "name": "Hello (Demo)",
+  "version": "0.1.0",
+  "description": "Minimal example plugin — adds a Say Hello tray menu item.",
+  "author": "Margin Team",
+  "min_host_version": "0.1.0",
+  "abi_version": "0.2.0",
+  "entry_point": "margin_plugin_entry",
+  "priority": 100,
+  "permissions": [],
+  "events": {
+    "publish": ["margin.hello.ping"],
+    "subscribe": []
+  },
+  "ui_contributions": ["TrayMenuContributor"]
+}

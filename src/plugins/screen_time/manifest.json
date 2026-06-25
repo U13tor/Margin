@@ -1,0 +1,20 @@
+{
+  "manifest_version": 1,
+  "id": "screen_time",
+  "name": "Screen Time Tracker",
+  "version": "0.1.0",
+  "description": "Tracks foreground-app duration with idle detection — passive listening, no polling.",
+  "author": "Margin Team",
+  "min_host_version": "0.1.0",
+  "abi_version": "0.2.0",
+  "entry_point": "margin_plugin_entry",
+  "priority": 30,
+  "permissions": ["active-window-monitor", "input-monitor", "database-write"],
+  "encrypted_settings": [],
+  "events": {
+    "publish": ["margin.screen_time.session"],
+    "subscribe": []
+  },
+  "settings_page_qml": "qml/ScreenTimeSettingsPage.qml",
+  "ui_contributions": ["TrayMenuContributor", "DashboardTabContributor", "SettingsPageContributor"]
+}

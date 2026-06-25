@@ -1,0 +1,15 @@
+{
+  "manifest_version": 1,
+  "id": "fake",
+  "name": "Fake (test fixture)",
+  "version": "0.1.0",
+  "description": "Minimal PluginInterface used by tests/integration/test_plugin_load_unload.cpp",
+  "author": "Margin Team",
+  "min_host_version": "0.1.0",
+  "abi_version": "0.2.0",
+  "entry_point": "margin_plugin_entry",
+  "priority": 100,
+  "permissions": [],
+  "events": { "publish": [], "subscribe": [] },
+  "ui_contributions": []
+}

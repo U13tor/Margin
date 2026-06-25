@@ -1,0 +1,132 @@
+; packaging/install.nsi.in
+;
+; NSIS 3.x installer script for Margin. configure_file()'d into
+; ${CMAKE_BINARY_DIR}/install.nsi by the top-level CMakeLists.txt, with
+; @PROJECT_VERSION@ / @MARGIN_NSIS_STAGE_DIR_NATIVE@ / etc. substituted.
+;
+; Why a hand-written .nsi instead of CPack NSIS generator:
+;   CPack's stock NSIS.template.in hardcodes `RequestExecutionLevel admin`
+;   and runs a `SetShellVarContext all` dance in .onInit when the launching
+;   user is in the Admin group — which silently flips $LOCALAPPDATA to
+;   C:\ProgramData and breaks the per-user install promise in docs/02 §2.1.
+;   `CPACK_NSIS_TEMPLATE_FILE` is meant to override the template but doesn't
+;   take effect on CMake 4.0's NSIS generator (confirmed by 3 separate
+;   attempt paths). Dropping CPack NSIS and driving makensis directly gives
+;   us full control over execution level + shell var context + license
+;   encoding. See docs/posts/2026-06-24-nsis-installer-handoff.md.
+;
+; Prerequisite: ${STAGE_DIR} must be populated by `cmake --install` before
+;   makensis runs. The `package_nsis` custom target in CMakeLists.txt chains
+;   both steps.
+
+!include "MUI2.nsh"
+!include "LogicLib.nsh"
+
+;--- Constants (injected by configure_file) -------------------------------
+!define APP_NAME "Margin"
+!define APP_FULL_NAME "Margin — 息间"
+!define APP_VERSION "@PROJECT_VERSION@"
+!define APP_FILE_VERSION "@PROJECT_VERSION@+build.@MARGIN_BUILD_STAMP@"
+!define APP_PUBLISHER "Margin contributors"
+!define APP_URL "https://github.com/U13tor/Margin"
+!define APP_EXE "Margin.exe"
+!define STAGE_DIR "@MARGIN_NSIS_STAGE_DIR_NATIVE@"
+!define LICENSE_FILE "@MARGIN_NSIS_LICENSE_NATIVE@"
+
+;--- Basic installer config -----------------------------------------------
+Name "${APP_FULL_NAME}"
+OutFile "@MARGIN_NSIS_OUT_FILE_NATIVE@"
+Unicode true
+ShowInstDetails show
+ShowUnInstDetails show
+BrandingText "${APP_FULL_NAME} ${APP_VERSION}"
+
+; Per-user install (Bug 1 + Bug 2 fix). The combination of `user` here +
+; NOT calling SetShellVarContext anywhere keeps $LOCALAPPDATA = per-user
+; AppData\Local on every Windows account, including Admin.
+RequestExecutionLevel user
+
+InstallDir "$LOCALAPPDATA\${APP_NAME}"
+InstallDirRegKey HKCU "Software\${APP_NAME}" "InstallDir"
+
+;--- Pages ----------------------------------------------------------------
+!insertmacro MUI_PAGE_LICENSE "${LICENSE_FILE}"
+!insertmacro MUI_PAGE_DIRECTORY
+!insertmacro MUI_PAGE_INSTFILES
+!insertmacro MUI_PAGE_FINISH
+
+!insertmacro MUI_UNPAGE_CONFIRM
+!insertmacro MUI_UNPAGE_INSTFILES
+
+; SimpChinese first because it's the primary user locale; NSIS falls back
+; through the list if a string isn't translated.
+!insertmacro MUI_LANGUAGE "SimpChinese"
+!insertmacro MUI_LANGUAGE "English"
+
+;--- Version info embedded in the installer .exe itself -------------------
+VIProductVersion @PROJECT_VERSION_MAJOR@.@PROJECT_VERSION_MINOR@.@PROJECT_VERSION_PATCH@.0
+VIAddVersionKey /LANG=2052 "ProductName" "${APP_FULL_NAME}"
+VIAddVersionKey /LANG=2052 "FileVersion" "${APP_FILE_VERSION}"
+VIAddVersionKey /LANG=2052 "ProductVersion" "${APP_VERSION}"
+VIAddVersionKey /LANG=2052 "CompanyName" "${APP_PUBLISHER}"
+VIAddVersionKey /LANG=2052 "LegalCopyright" "LGPL-3.0-or-later"
+VIAddVersionKey /LANG=2052 "FileDescription" "${APP_FULL_NAME} installer"
+
+;--- Install section ------------------------------------------------------
+Section "Install"
+  SetOutPath "$INSTDIR"
+  SetOverwrite ifnewer
+
+  ; Recursively copy the staged install tree (Margin.exe + Qt runtime +
+  ; plugins/ + licenses/ + OpenSSL DLLs) into $INSTDIR.
+  File /r "${STAGE_DIR}\*.*"
+
+  ; Remember install dir for upgrades / uninstaller lookup.
+  WriteRegStr HKCU "Software\${APP_NAME}" "InstallDir" "$INSTDIR"
+
+  ; Self-extracting uninstaller.
+  WriteUninstaller "$INSTDIR\Uninstall.exe"
+
+  ; HKCU Add/Remove Programs entry (per-user — no UAC needed to write HKCU).
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" \
+    "DisplayName" "${APP_FULL_NAME}"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" \
+    "DisplayVersion" "${APP_VERSION}"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" \
+    "Publisher" "${APP_PUBLISHER}"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" \
+    "DisplayIcon" "$INSTDIR\${APP_EXE}"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" \
+    "URLInfoAbout" "${APP_URL}"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" \
+    "InstallLocation" "$INSTDIR"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" \
+    "UninstallString" "$\"$INSTDIR\Uninstall.exe$\""
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" \
+    "QuietUninstallString" "$\"$INSTDIR\Uninstall.exe$\" /S"
+  WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" \
+    "NoModify" 1
+  WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" \
+    "NoRepair" 1
+
+  ; Start menu shortcut (per-user: $SMPROGRAMS is the user's Start Menu).
+  CreateShortCut "$SMPROGRAMS\${APP_FULL_NAME}.lnk" "$INSTDIR\${APP_EXE}" \
+    "" "$INSTDIR\${APP_EXE}" 0
+
+  SetAutoClose true
+SectionEnd
+
+;--- Uninstall section ----------------------------------------------------
+Section "Uninstall"
+  ; Remove install dir + everything under it (Qt DLLs, plugins/, etc.).
+  RMDir /r "$INSTDIR"
+
+  ; Remove shortcuts.
+  Delete "$SMPROGRAMS\${APP_FULL_NAME}.lnk"
+
+  ; Clean registry.
+  DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}"
+  DeleteRegKey HKCU "Software\${APP_NAME}"
+
+  SetAutoClose true
+SectionEnd

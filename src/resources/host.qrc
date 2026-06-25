@@ -1,0 +1,53 @@
+<!DOCTYPE RCC>
+<!--
+  host.qrc — host-owned SVG icon set + tray resources. Compiled into the
+  Margin exe via AUTORCC (CMAKE_AUTORCC ON at top level). All aliases are
+  served at qrc:/icons/<alias>; MIcon.qml (Margin.Ui.Primitives) is the
+  canonical consumer. Plugins that own their own icons (rhythm/screen_time/
+  aura_locker) ship them in their respective <plugin>.qrc.
+
+  M4-C3 expanded the registered set from 4 → 34 (all SVGs under icons/).
+  Aliases are filename-minus-.svg for grep-ability. The 8 neck-stretch-*.png
+  frames belong to M4-C13b's rhythm.qrc and are intentionally NOT here.
+
+  Audit: M4-C16 (last M4 UI PR) will grep qrc:/icons/* usage and prune any
+  zero-reference entries to docs/12-deferred-items.md.
+-->
+<RCC version="1.0">
+    <qresource prefix="/icons">
+        <file alias="icon-appearance.svg">icons/icon-appearance.svg</file>
+        <file alias="icon-arrow-right.svg">icons/icon-arrow-right.svg</file>
+        <file alias="icon-bell.svg">icons/icon-bell.svg</file>
+        <file alias="icon-bluetooth.svg">icons/icon-bluetooth.svg</file>
+        <file alias="icon-check.svg">icons/icon-check.svg</file>
+        <file alias="icon-close.svg">icons/icon-close.svg</file>
+        <file alias="icon-dashboard.svg">icons/icon-dashboard.svg</file>
+        <file alias="icon-database.svg">icons/icon-database.svg</file>
+        <file alias="icon-export.svg">icons/icon-export.svg</file>
+        <file alias="icon-github.svg">icons/icon-github.svg</file>
+        <file alias="icon-hourglass.svg">icons/icon-hourglass.svg</file>
+        <file alias="icon-info.svg">icons/icon-info.svg</file>
+        <file alias="icon-lock.svg">icons/icon-lock.svg</file>
+        <file alias="icon-maximize.svg">icons/icon-maximize.svg</file>
+        <file alias="icon-minimize.svg">icons/icon-minimize.svg</file>
+        <file alias="icon-pause.svg">icons/icon-pause.svg</file>
+        <file alias="icon-play.svg">icons/icon-play.svg</file>
+        <file alias="icon-plus.svg">icons/icon-plus.svg</file>
+        <file alias="icon-pulse.svg">icons/icon-pulse.svg</file>
+        <file alias="icon-quit.svg">icons/icon-quit.svg</file>
+        <file alias="icon-rhythm-wave.svg">icons/icon-rhythm-wave.svg</file>
+        <file alias="icon-skip.svg">icons/icon-skip.svg</file>
+        <file alias="icon-trash.svg">icons/icon-trash.svg</file>
+        <file alias="icon-update.svg">icons/icon-update.svg</file>
+        <file alias="settings.svg">icons/settings.svg</file>
+        <file alias="tab-calendar.svg">icons/tab-calendar.svg</file>
+        <file alias="tab-home.svg">icons/tab-home.svg</file>
+        <file alias="tab-pie-chart.svg">icons/tab-pie-chart.svg</file>
+        <file alias="tab-rhythm.svg">icons/tab-rhythm.svg</file>
+        <file alias="tab-screen-time.svg">icons/tab-screen-time.svg</file>
+        <file alias="tab-settings.svg">icons/tab-settings.svg</file>
+        <file alias="tray-locked.svg">icons/tray-locked.svg</file>
+        <file alias="tray-stretching.svg">icons/tray-stretching.svg</file>
+        <file alias="tray.svg">icons/tray.svg</file>
+    </qresource>
+</RCC>
