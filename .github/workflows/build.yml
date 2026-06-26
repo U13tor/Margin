@@ -17,7 +17,11 @@ jobs:
       matrix:
         # macOS CI is deferred — Stage 9 cuts the macOS backend.
         # Re-add `macos-latest` here when the macOS port lands.
-        os: [windows-latest]
+        # Pinned to windows-2022 (VS 2022) because:
+        #   - Qt 6.5.3 uses stdext:: which was removed in MSVC 14.40+
+        #   - windows-2022 has the 14.39 toolset as a side-by-side install
+        #   - windows-latest now maps to windows-2025 (VS 18) which lacks 14.39
+        os: [windows-2022]
         config: [Debug, Release]
 
     runs-on: ${{ matrix.os }}

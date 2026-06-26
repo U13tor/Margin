@@ -26,7 +26,8 @@ permissions:
 jobs:
   build-windows-installer:
     name: Build Windows installer
-    runs-on: windows-latest
+    # Pinned to windows-2022: Qt 6.5.3 requires MSVC ≤14.39 (stdext removal in 14.40+)
+    runs-on: windows-2022
 
     steps:
       - name: Checkout
