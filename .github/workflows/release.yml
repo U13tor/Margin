@@ -93,16 +93,41 @@ jobs:
       - name: Stage snapshot listing
         shell: bash
         # Sanity check: confirm windeployqt populated the stage dir with
-        # the Qt runtime we expect. Fails the job loudly if absent.
+        # the Qt runtime we expect. Prints per-file OK/MISSING before the
+        # hard assertions so CI logs name the culprit directly (the prior
+        # silent test -f chain only surfaced as "exit code 1" with no hint
+        # which file was absent — see docs/16-ci-pipeline.md §6).
         run: |
           ls build/win64-msvc-release/stage/
+          for f in \
+            build/win64-msvc-release/stage/Margin.exe \
+            build/win64-msvc-release/stage/platforms/qwindows.dll \
+            build/win64-msvc-release/stage/libcrypto-3-x64.dll \
+            build/win64-msvc-release/stage/licenses/LICENSE \
+            build/win64-msvc-release/stage/licenses/LICENSE-Apache-2.0.txt \
+            build/win64-msvc-release/stage/plugins/margin-aura-locker.dll; do
+            if [ -f "$f" ]; then echo "OK: $f"; else echo "MISSING: $f"; fi
+          done
+          # Qt6Cored.dll (Debug) OR Qt6Core.dll (Release)
+          test -f build/win64-msvc-release/stage/Qt6Cored.dll || \
+            test -f build/win64-msvc-release/stage/Qt6Core.dll || \
+            { echo "MISSING: Qt6Core*.dll"; exit 1; }
+          # 全部必须存在(hard assertion)
           test -f build/win64-msvc-release/stage/Margin.exe
           test -f build/win64-msvc-release/stage/platforms/qwindows.dll
-          test -f build/win64-msvc-release/stage/Qt6Cored.dll || test -f build/win64-msvc-release/stage/Qt6Core.dll
           test -f build/win64-msvc-release/stage/libcrypto-3-x64.dll
           test -f build/win64-msvc-release/stage/licenses/LICENSE
           test -f build/win64-msvc-release/stage/licenses/LICENSE-Apache-2.0.txt
           test -f build/win64-msvc-release/stage/plugins/margin-aura-locker.dll
+
+      - name: Upload staging dir (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage-snapshot-${{ github.run_id }}
+          path: build/win64-msvc-release/stage/
+          if-no-files-found: ignore  # earlier steps may fail before stage/ exists
+          retention-days: 7
 
       - name: Package (NSIS installer)
         shell: bash
