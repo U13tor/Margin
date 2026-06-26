@@ -9,13 +9,18 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Per-build stamp baked into Margin.exe VERSIONINFO FileVersion + NSIS
-# installer OutFile name so each build is self-differentiating without
-# manual version bumps. Local time (dev-machine perspective). Re-evaluated
-# at every configure — any CMakeLists / .cmake / new source edit triggers
-# CMake auto re-configure on next build, so the stamp tracks code changes
-# in practice. A no-op rebuild with zero source edits keeps the old stamp,
-# which is correct (identical input → identical output).
+# Per-build stamp baked into Margin.exe VERSIONINFO FileVersion (right-click →
+# Properties → Details) so each build is self-differentiating without manual
+# version bumps. Local time (dev-machine perspective). Re-evaluated at every
+# configure — any CMakeLists / .cmake / new source edit triggers CMake auto
+# re-configure on next build, so the stamp tracks code changes in practice.
+# A no-op rebuild with zero source edits keeps the old stamp, which is
+# correct (identical input → identical output).
+#
+# Note: the stamp stays in FileVersion only — the NSIS installer OutFile name
+# uses bare PROJECT_VERSION (e.g. Margin-Setup-0.1.0-x64.exe) so release
+# artifacts have SemVer-clean filenames matching Portable ZIP naming in
+# release.yml (which strips leading 'v' from git tag).
 string(TIMESTAMP MARGIN_BUILD_STAMP "%Y%m%d.%H%M")
 
 set(CMAKE_AUTOMOC ON)
@@ -213,7 +218,7 @@ if(WIN32)
     # install.nsi so makensis's File /r finds Margin.exe + Qt runtime +
     # plugins/ + licenses/.
     set(MARGIN_NSIS_STAGE_DIR "${CMAKE_BINARY_DIR}/stage")
-    set(MARGIN_NSIS_OUT_FILE "${CMAKE_BINARY_DIR}/Margin-Setup-${PROJECT_VERSION}+build.${MARGIN_BUILD_STAMP}-x64.exe")
+    set(MARGIN_NSIS_OUT_FILE "${CMAKE_BINARY_DIR}/Margin-Setup-${PROJECT_VERSION}-x64.exe")
     file(TO_NATIVE_PATH "${MARGIN_NSIS_STAGE_DIR}" MARGIN_NSIS_STAGE_DIR_NATIVE)
     file(TO_NATIVE_PATH "${_nsis_license}" MARGIN_NSIS_LICENSE_NATIVE)
     file(TO_NATIVE_PATH "${MARGIN_NSIS_OUT_FILE}" MARGIN_NSIS_OUT_FILE_NATIVE)
