@@ -40,10 +40,10 @@ jobs:
         with:
           vcpkgDirectory: ${{ runner.workspace }}/vcpkg
 
-      - name: Setup Qt 6.5
+      - name: Setup Qt 6.7
         uses: jurplel/install-qt-action@v4
         with:
-          version: '6.5.5'
+          version: '6.7.3'
 
       - name: Setup MSVC dev environment
         uses: ilammy/msvc-dev-cmd@v1

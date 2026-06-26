@@ -35,7 +35,7 @@ jobs:
       - name: Setup Qt (online installer)
         uses: jurplel/install-qt-action@v4
         with:
-          version: '6.5.5'
+          version: '6.7.3'
           # Qt 6 起 qtdeclarative / qtsvg 是核心模块,随 base 自动装;
           # modules 字段留给 add-on(qtcharts / qtmultimedia 等),M0–M3 用不到。
 
