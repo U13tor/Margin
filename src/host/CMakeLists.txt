@@ -35,9 +35,15 @@ qt_add_executable(Margin
 )
 
 
-# Intentionally NOT setting WIN32_EXECUTABLE so stdout stays visible —
-# scripts/build-smoke.sh step 5 relies on capturing the startup line via
-# stdout mirror (see services/Logger.cpp).
+# WIN32_EXECUTABLE gates the PE subsystem flag (entry point in Margin.exe's
+# IMAGE_OPTIONAL_HEADER):
+#   Release → WINDOWS subsystem: no console window spawned on double-click
+#             (the user-facing experience for distributed binaries).
+#   Debug   → CONSOLE subsystem: Logger's stdout mirror stays visible so
+#             scripts/build-smoke.sh step 5 can capture the startup line.
+# Generator expression keeps the rule in one place — no if/else branching.
+set_target_properties(Margin PROPERTIES
+    WIN32_EXECUTABLE $<CONFIG:Release>)
 # ../resources/host.qrc + ../ui/ui.qrc are processed by AUTORCC
 # (CMAKE_AUTORCC ON in top-level CMakeLists). ui.qrc carries the M0-C10a shell
 # QML (DashboardWindow/TabBar/StatusBar) at qrc:/ui/.
