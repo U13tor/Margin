@@ -26,8 +26,7 @@ permissions:
 jobs:
   build-windows-installer:
     name: Build Windows installer
-    # Pinned to windows-2022: Qt 6.5.3 requires MSVC ≤14.39 (stdext removal in 14.40+)
-    runs-on: windows-2022
+    runs-on: windows-latest
 
     steps:
       - name: Checkout
@@ -44,13 +43,12 @@ jobs:
       - name: Setup Qt 6.5
         uses: jurplel/install-qt-action@v4
         with:
-          version: '6.5'
+          version: '6.5.5'
 
       - name: Setup MSVC dev environment
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
-          toolset: '14.39'
 
       - name: Configure (Release)
         shell: bash

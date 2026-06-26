@@ -17,11 +17,7 @@ jobs:
       matrix:
         # macOS CI is deferred — Stage 9 cuts the macOS backend.
         # Re-add `macos-latest` here when the macOS port lands.
-        # Pinned to windows-2022 (VS 2022) because:
-        #   - Qt 6.5.3 uses stdext:: which was removed in MSVC 14.40+
-        #   - windows-2022 has the 14.39 toolset as a side-by-side install
-        #   - windows-latest now maps to windows-2025 (VS 18) which lacks 14.39
-        os: [windows-2022]
+        os: [windows-latest]
         config: [Debug, Release]
 
     runs-on: ${{ matrix.os }}
@@ -39,7 +35,7 @@ jobs:
       - name: Setup Qt (online installer)
         uses: jurplel/install-qt-action@v4
         with:
-          version: '6.5'
+          version: '6.5.5'
           # Qt 6 起 qtdeclarative / qtsvg 是核心模块,随 base 自动装;
           # modules 字段留给 add-on(qtcharts / qtmultimedia 等),M0–M3 用不到。
 
@@ -47,7 +43,6 @@ jobs:
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
-          toolset: '14.39'
 
       - name: Select preset
         id: preset
