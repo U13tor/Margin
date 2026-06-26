@@ -26,7 +26,9 @@ permissions:
 jobs:
   build-windows-installer:
     name: Build Windows installer
-    runs-on: windows-latest
+    # Pinned to windows-2022: VS 2025 (MSVC 14.51) on windows-latest breaks
+    # C++/WinRT experimental/coroutine in C++17 mode.
+    runs-on: windows-2022
 
     steps:
       - name: Checkout
