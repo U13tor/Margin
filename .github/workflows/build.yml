@@ -51,7 +51,7 @@ jobs:
         id: preset
         shell: bash
         run: |
-          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+          if [[ "${{ matrix.os }}" == windows-* ]]; then
             echo "name=win64-msvc-${{ matrix.config == 'Debug' && 'debug' || 'release' }}" >> $GITHUB_OUTPUT
           else
             echo "name=macos-clang-${{ matrix.config == 'Debug' && 'debug' || 'release' }}" >> $GITHUB_OUTPUT
