@@ -132,15 +132,21 @@ jobs:
       - name: Resolve version
         id: ver
         shell: bash
-        # Strip leading 'v' from git tag (v0.1.0 → 0.1.0) for SemVer-clean
-        # filenames, matching CMakeLists.txt PROJECT_VERSION (no v, no
-        # timestamp). Used by Portable ZIP filename + Release body refs.
-        # NSIS installer filename comes from install.nsi (baked at configure
-        # time as Margin-Setup-${PROJECT_VERSION}-x64.exe) so the two stay
-        # consistent. The build timestamp survives in the internal FileVersion
-        # of Margin.exe + installer exe (right-click → Properties → Details).
+        # Prefer inputs.version when set (workflow_dispatch — defaults to
+        # 'dry-run' even if user doesn't enter anything). Tag push has no
+        # inputs context, so inputs.version evaluates to empty string and we
+        # fall back to GITHUB_REF_NAME (tag name like v0.1.0). Then strip
+        # leading 'v' for SemVer-clean filenames.
+        #
+        # NOTE: the previous `${GITHUB_REF_NAME:-inputs.version}` form was
+        # inverted — GITHUB_REF_NAME is *always* non-empty (it's the branch
+        # name on workflow_dispatch), so inputs.version was never consulted.
         run: |
-          RAW="${GITHUB_REF_NAME:-${{ inputs.version }}}"
+          if [[ -n "${{ inputs.version }}" ]]; then
+            RAW="${{ inputs.version }}"
+          else
+            RAW="${GITHUB_REF_NAME}"
+          fi
           RAW="${RAW:-0.1.0}"
           VERSION="${RAW#v}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
@@ -153,12 +159,15 @@ jobs:
         # stock template's RequestExecutionLevel admin + SetShellVarContext
         # all dance can't be overridden. See docs/posts/2026-06-24-nsis-installer-handoff.md.
         #
-        # OutFile is baked as Margin-Setup-${PROJECT_VERSION}-x64.exe (clean
-        # SemVer, no build timestamp — see CMakeLists.txt comment). Assert
-        # via ls glob; if multiple matches, head -1 picks the newest.
+        # OutFile is baked by CMake as Margin-Setup-${PROJECT_VERSION}-x64.exe
+        # (=0.1.0). Use ls glob for assertion — robust against any version
+        # suffix and matches what the upload step already does. Don't try to
+        # rename; in workflow_dispatch mode NSIS keeps 0.1.0 while Portable
+        # ZIP uses inputs.version, but that's a dry-run-only inconsistency
+        # (Release body only renders on tag push, where both = 0.1.0).
         run: |
           makensis build/win64-msvc-release/install.nsi
-          ls build/win64-msvc-release/Margin-Setup-${{ steps.ver.outputs.version }}-x64.exe
+          ls build/win64-msvc-release/Margin-Setup-*-x64.exe
 
       - name: Package (Portable ZIP)
         shell: bash
