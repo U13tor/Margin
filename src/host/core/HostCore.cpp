@@ -414,6 +414,12 @@ bool HostCore::bootstrap() {
                              Q_ARG(QVariant, QVariant::fromValue(pageId)));
                      });
 
+    // First-launch dashboard show. QML stays visible: false at startup (the
+    // tray-driven entry point remains SSOT); we invoke the same openDashboard()
+    // helper here so the window gets show()+raise()+requestActivate() in one
+    // shot — visible AND focused, no extra click required.
+    QMetaObject::invokeMethod(dashboard, "openDashboard");
+
     return true;
 }
 
