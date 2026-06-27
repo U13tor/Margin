@@ -10,6 +10,9 @@
 #   3. Add the qrc to the plugin target's sources (AUTORCC embeds it)
 #   4. Make the target depend on the per-plugin qm custom target
 #
+# Qt version note: 6.5-only workaround — see build_i18n.cmake top comment.
+# Tracked as v1.1+ follow-up (D5 子项 2).
+#
 # Resource layout (matches QTranslator::load path used by PluginManager):
 #   :/<plugin_id>/i18n/<plugin_id>_en.qm
 #   :/<plugin_id>/i18n/<plugin_id>_zh_CN.qm

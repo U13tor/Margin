@@ -43,6 +43,10 @@ constexpr const char* kKeyMaxPostpones   = "plugins.rhythm.max_postpones";
 constexpr const char* kKeyTargetRounds   = "plugins.rhythm.target_rounds";
 constexpr const char* kKeyAutostart      = "plugins.rhythm.autostart";
 constexpr const char* kKeyResumeDelaySec = "plugins.rhythm.resume_delay_sec";
+// 2026-06-27 lifecycle fix: BreakActive completion auto-seeds the next work
+// round. Exposed as a setting so autostart-disabled hosts can opt back into
+// the v1.0 manual-pacing behavior.
+constexpr const char* kKeyAutoContinueCycle = "plugins.rhythm.auto_continue_cycle";
 // M4-C8: today-scoped completed-rounds counter + the calendar day it's
 // scoped to. Count resets to 0 when stored date != today (cross-machine
 // overnight case). Persists across restarts within the same day.
@@ -61,17 +65,38 @@ Result<void, std::string> RhythmPlugin::onLoad(const PluginContext& ctx) {
     loadSettings();
 
     // M3-C2: idle detection. Connect InputMonitorService::userIdleStateChanged
-    // straight into PomodoroTimer::setPaused — no EventBus round-trip, the
-    // signal is host-side and edge-triggered (no dedupe needed).
+    // straight into PomodoroTimer::setPausedForReason(Idle) — no EventBus
+    // round-trip, the signal is host-side and edge-triggered (no dedupe
+    // needed). Routes through the Idle bit of the pause mask so concurrent
+    // User/Aura reasons don't get clobbered.
     // inputMonitor() is null on macOS until §A19 lifts (CGEventTap not
     // implemented), so on Mac the plugin still works but doesn't pause on
     // idle. Matches Screen Time's behavior on the same platform.
     auto* inputMonitor = ctx.host ? ctx.host->inputMonitor() : nullptr;
     if (inputMonitor) {
         connect(inputMonitor, &InputMonitorService::userIdleStateChanged,
-                &m_timer, &PomodoroTimer::setPaused);
+                &m_timer,
+                [&timer = m_timer](bool idle) {
+                    timer.setPausedForReason(idle, PomodoroTimer::PauseReason::Idle);
+                    if (!idle) {
+                        // Bug H fallback (2026-06-27): a real user-presence
+                        // signal means any prior Aura "away" inference is
+                        // stale. Microsoft peripherals sleep after the user
+                        // walks back and don't rebroadcast BLE, so the
+                        // margin.aura.back signal that would normally clear
+                        // this bit never fires — the timer would stay
+                        // frozen on "已暂停 · 离开中" forever. Physical input
+                        // is ground truth; trust it over the BLE inference.
+                        // Genuine BLE jitter (back → away within seconds)
+                        // is already absorbed by Aura's 4× heartbeat
+                        // (ProximityDetector), so this path doesn't cause
+                        // false-clears of legitimate away states.
+                        timer.setPausedForReason(false,
+                            PomodoroTimer::PauseReason::AuraAway);
+                    }
+                });
         if (log) log->info(QString::fromLatin1(kTag),
-            QStringLiteral("idle monitor wired — pausing countdown on idle"));
+            QStringLiteral("idle monitor wired — pausing on idle, clearing stuck AuraAway on resume"));
     } else if (log) {
         log->warn(QString::fromLatin1(kTag),
             QStringLiteral("InputMonitor unavailable on this platform — "
@@ -115,13 +140,17 @@ Result<void, std::string> RhythmPlugin::onLoad(const PluginContext& ctx) {
         m_auraResumeTimer.setSingleShot(true);
         m_auraResumeTimer.setInterval(qMax(0, resumeDelaySec) * 1000);
         connect(&m_auraResumeTimer, &QTimer::timeout, this,
-            [this]() { m_timer.setPaused(false); });
+            [this]() {
+                m_timer.setPausedForReason(false,
+                    PomodoroTimer::PauseReason::AuraAway);
+            });
 
         auto& bus = ctx.host->eventBus();
         bus.subscribe(QStringLiteral("margin.aura.away"),
             [this](const QJsonObject&) {
                 m_auraResumeTimer.stop();  // cancel any pending resume
-                m_timer.setPaused(true);
+                m_timer.setPausedForReason(true,
+                    PomodoroTimer::PauseReason::AuraAway);
             },
             ctx.subscriberIdentity);
         bus.subscribe(QStringLiteral("margin.aura.back"),
@@ -154,6 +183,14 @@ Result<void, std::string> RhythmPlugin::onLoad(const PluginContext& ctx) {
             if (m_ctx.host) m_ctx.host->settings().set(
                 QString::fromLatin1(kKeyTargetRounds), m_timer.targetRounds());
         });
+        // 2026-06-27: persist autoContinueCycle so the user's pacing
+        // preference survives restarts. Settings UI for this lives in
+        // RhythmSettingsPage.qml (deferred to follow-up).
+        connect(&m_timer, &PomodoroTimer::autoContinueCycleChanged, this, [this]() {
+            if (m_ctx.host) m_ctx.host->settings().set(
+                QString::fromLatin1(kKeyAutoContinueCycle),
+                m_timer.autoContinueCycle());
+        });
         // M4-C8: persist today-scoped rounds + the date it's scoped to so
         // a restart within the same day doesn't reset the counter. Both
         // keys are written on every todayCompletedRoundsChanged fire —
@@ -171,11 +208,12 @@ Result<void, std::string> RhythmPlugin::onLoad(const PluginContext& ctx) {
 
     if (log) {
         log->info(QString::fromLatin1(kTag),
-            QStringLiteral("RhythmPlugin onLoad work=%1min break=%2min maxPostpones=%3 targetRounds=%4")
+            QStringLiteral("RhythmPlugin onLoad work=%1min break=%2min maxPostpones=%3 targetRounds=%4 autoContinue=%5")
                 .arg(m_timer.workMinutes())
                 .arg(m_timer.breakMinutes())
                 .arg(m_timer.maxPostpones())
-                .arg(m_timer.targetRounds()));
+                .arg(m_timer.targetRounds())
+                .arg(m_timer.autoContinueCycle()));
     }
 
     // Auto-start the work countdown unless the user opted out. Default ON
@@ -191,7 +229,21 @@ Result<void, std::string> RhythmPlugin::onLoad(const PluginContext& ctx) {
 }
 
 void RhythmPlugin::onUnload() {
+    // Bug E (2026-06-27): stop the aura resume timer BEFORE we tear down.
+    // The timer's lambda captures `this` and reaches into m_timer — once
+    // destruction starts that's a use-after-free window. Single-shot also
+    // means no pending fire, but stopping it explicitly is belt+suspenders.
+    m_auraResumeTimer.stop();
     m_timer.stop();
+    // Bug O: hide + null the overlay alongside the toast. Both are
+    // QPointer<QQuickWindow> with the same lifecycle shape; treating them
+    // symmetrically avoids a windowed zombie if the plugin is reloaded
+    // (test harness does this routinely).
+    if (m_overlayWindow) {
+        m_overlayWindow->hide();
+        delete m_overlayWindow.data();
+        m_overlayWindow = nullptr;
+    }
     if (m_toastWindow) {
         m_toastWindow->hide();
         delete m_toastWindow.data();
@@ -229,10 +281,13 @@ void RhythmPlugin::loadSettings() {
     const int clampedBreak = PomodoroTimer::clampBreakMinutes(rawBreak);
     const int clampedPostp = PomodoroTimer::clampMaxPostpones(rawPostp);
     const int clampedTarget = PomodoroTimer::clampTargetRounds(rawTarget);
+    const bool rawAutoContinue = settings->get(
+        QString::fromLatin1(kKeyAutoContinueCycle), true).toBool();
     m_timer.setWorkMinutes(clampedWork);
     m_timer.setBreakMinutes(clampedBreak);
     m_timer.setMaxPostpones(clampedPostp);
     m_timer.setTargetRounds(clampedTarget);
+    m_timer.setAutoContinueCycle(rawAutoContinue);
 
     // M4-C8: restore today's completed-rounds counter + the calendar day it's
     // scoped to. Load both BEFORE ensureDailyRollback so the rollback sees
@@ -276,19 +331,23 @@ void RhythmPlugin::loadSettings() {
 
 QList<TrayMenuContributor::TrayItem> RhythmPlugin::contributeTrayItems() {
     QList<TrayMenuContributor::TrayItem> items;
-    // toggle: "X: ON" / "X: OFF" format (docs/06 §4.8).
+    // Bug B fix (2026-06-27): tray shows the ACTION the click will perform,
+    // not the current state. The legacy "Rhythm: ON / OFF" lied whenever the
+    // pause came from Aura/Idle (paused=true → "OFF" but the user didn't
+    // toggle anything). Action semantics stay correct in every mask
+    // combination: if paused, clicking resumes; if not, clicking pauses.
     TrayMenuContributor::TrayItem toggle;
     toggle.id        = kToggleId;
     const bool paused = m_timer.paused();
-    // PR3 i18n: translate both branches so the tray label flips with the
-    // active catalog. SystemTray::retranslate re-pulls items on language
-    // change so this is evaluated again under the new translator.
-    toggle.label     = (paused
-        ? QCoreApplication::translate("RhythmPlugin", "Rhythm: OFF")
-        : QCoreApplication::translate("RhythmPlugin", "Rhythm: ON")
+    const bool idle = m_timer.state() == PomodoroTimer::State::Idle;
+    toggle.label = (idle
+        ? QCoreApplication::translate("RhythmPlugin", "Start Rhythm")
+        : paused
+            ? QCoreApplication::translate("RhythmPlugin", "Resume Rhythm")
+            : QCoreApplication::translate("RhythmPlugin", "Pause Rhythm")
     ).toStdString();
-    toggle.checkable = true;
-    toggle.checked   = !paused;
+    // Action semantics, not state semantics — no checkmark.
+    toggle.checkable = false;
     items.append(toggle);
 
     // Preview line: only show next-break time when actively working. Other
@@ -310,16 +369,35 @@ QList<TrayMenuContributor::TrayItem> RhythmPlugin::contributeTrayItems() {
 
 void RhythmPlugin::onTrayItemClicked(const std::string& id) {
     if (id != kToggleId) return;
-    // C1: a true pause that preserves the countdown — not stop()/start()
-    // (which would reset remaining + restart a fresh work session). Shares the
-    // single paused latch with the idle (C2) / Aura (C5) auto-pause sources.
-    const bool nowPaused = !m_timer.paused();
-    m_timer.setPaused(nowPaused);
+    // Bug A fix (2026-06-27): legacy setPaused(!paused) only flipped the
+    // User bit — useless when paused-by-Aura-only because User was never
+    // set. forceResume() clears the entire mask; start() seeds a fresh
+    // work session from Idle. Three branches cover the three things a
+    // user could mean by "click the rhythm tray item".
+    if (m_timer.state() == PomodoroTimer::State::Idle) {
+        m_timer.start();
+        if (m_ctx.host) {
+            m_ctx.host->logger().info(
+                QString::fromLatin1(kTag),
+                QStringLiteral("Rhythm started (tray)"));
+        }
+    } else if (m_timer.paused()) {
+        m_timer.forceResume();
+        if (m_ctx.host) {
+            m_ctx.host->logger().info(
+                QString::fromLatin1(kTag),
+                QStringLiteral("Rhythm force-resumed (tray) — mask cleared"));
+        }
+    } else {
+        m_timer.setPaused(true);
+        if (m_ctx.host) {
+            m_ctx.host->logger().info(
+                QString::fromLatin1(kTag),
+                QStringLiteral("Rhythm paused (tray)"));
+        }
+    }
     if (m_ctx.host) {
-        m_ctx.host->logger().info(
-            QString::fromLatin1(kTag),
-            nowPaused ? QStringLiteral("Rhythm paused") : QStringLiteral("Rhythm resumed"));
-        // Flip "Rhythm: ON" ↔ "Rhythm: OFF".
+        // Refresh so the label flips to the next action.
         m_ctx.host->tray().refreshPluginMenu(QString::fromLatin1(kId));
     }
 }

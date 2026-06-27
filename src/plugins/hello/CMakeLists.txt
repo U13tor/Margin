@@ -7,7 +7,7 @@
 # dev time (Paths::officialPlugins() = QCoreApplication::applicationDirPath()
 # + "/plugins").
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core)
+find_package(Qt6 6.7 REQUIRED COMPONENTS Core)
 
 add_library(margin_hello SHARED
     entry.cpp

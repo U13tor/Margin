@@ -1,13 +1,18 @@
 // src/host/security/CryptoServicePool.cpp
+//
+// Per-plugin key derivation via HKDF-SHA256 (RFC 5869). Implemented on
+// QCryptographicHash::hmac — Qt 6.7 has no native HKDF API, but HMAC-SHA256
+// is sufficient. See docs/12-deferred-items.md D5-1 (OpenSSL removal).
 
 #include "CryptoServicePool.h"
 
-#include <openssl/core_names.h>
-#include <openssl/evp.h>
-#include <openssl/kdf.h>
-#include <openssl/params.h>
+#include <QByteArray>
+#include <QCryptographicHash>
+#include <QMessageAuthenticationCode>
+#include <QString>
 
 #include <stdexcept>
+#include <vector>
 
 #if defined(Q_OS_WIN)
 #  include <windows.h>
@@ -19,6 +24,7 @@ namespace {
 
 constexpr char kHkdfInfo[]   = "margin-plugin-key";
 constexpr int  kPluginKeyLen = 32;
+constexpr int  kSha256Len    = 32;
 
 void secureZero(std::vector<uint8_t>& v) {
     if (v.empty()) return;
@@ -31,39 +37,66 @@ void secureZero(std::vector<uint8_t>& v) {
     v.clear();
 }
 
+// HMAC-SHA256(key, message) -> 32-byte digest, wrapped as std::vector.
+// QMessageAuthenticationCode is Qt's HMAC primitive (QtCore since 5.1).
+std::vector<uint8_t> hmacSha256(const std::vector<uint8_t>& key,
+                                const QByteArray& message) {
+    const QByteArray keyWrap(reinterpret_cast<const char*>(key.data()),
+                              static_cast<int>(key.size()));
+    const QByteArray tag = QMessageAuthenticationCode::hash(
+        message, keyWrap, QCryptographicHash::Sha256);
+    return std::vector<uint8_t>(tag.constBegin(), tag.constEnd());
+}
+
+// HKDF-Extract(salt, IKM) -> PRK (32 bytes).
+// RFC 5869 §2.2: PRK = HMAC-Hash(salt, IKM). Empty salt is replaced by
+// HashLen zeros, but pluginId UTF-8 is always non-empty in our usage.
+std::vector<uint8_t> hkdfExtract(const std::vector<uint8_t>& salt,
+                                  const std::vector<uint8_t>& ikm) {
+    std::vector<uint8_t> effectiveSalt = salt;
+    if (effectiveSalt.empty()) effectiveSalt.assign(kSha256Len, 0);
+
+    const QByteArray ikmWrap(reinterpret_cast<const char*>(ikm.data()),
+                              static_cast<int>(ikm.size()));
+    return hmacSha256(effectiveSalt, ikmWrap);
+}
+
+// HKDF-Expand(PRK, info, L) -> OKM (L bytes).
+// RFC 5869 §2.3: T(0)=empty; T(i)=HMAC(PRK, T(i-1)|info|i); OKM=first L bytes.
+std::vector<uint8_t> hkdfExpand(const std::vector<uint8_t>& prk,
+                                 const QByteArray& info,
+                                 int length) {
+    const int N = (length + kSha256Len - 1) / kSha256Len;
+    if (N > 255) throw std::runtime_error("HKDF-Expand length too large");
+
+    std::vector<uint8_t> okm;
+    QByteArray prev;  // T(i-1)
+    for (int i = 1; i <= N; ++i) {
+        QByteArray msg;
+        msg.append(prev);
+        msg.append(info);
+        msg.append(static_cast<char>(i));
+        const std::vector<uint8_t> t = hmacSha256(prk, msg);
+        prev = QByteArray(reinterpret_cast<const char*>(t.data()),
+                          static_cast<int>(t.size()));
+        okm.insert(okm.end(), t.begin(), t.end());
+    }
+    okm.resize(length);
+    return okm;
+}
+
 // HKDF-SHA256: IKM=master_key (32B), salt=pluginId UTF-8, info=kHkdfInfo,
-// output length=32B. Throws std::runtime_error on OpenSSL failure.
+// output length=32B. Throws std::runtime_error on internal failure.
 std::vector<uint8_t> hkdfDerive(const std::vector<uint8_t>& master,
                                 const QString& pluginId) {
     const QByteArray saltBytes = pluginId.toUtf8();
+    const std::vector<uint8_t> salt(saltBytes.constBegin(),
+                                     saltBytes.constEnd());
+    const QByteArray info = QByteArray::fromRawData(kHkdfInfo,
+                                                    sizeof(kHkdfInfo) - 1);
 
-    EVP_KDF* kdf = EVP_KDF_fetch(nullptr, "HKDF", nullptr);
-    if (!kdf) throw std::runtime_error("EVP_KDF_fetch HKDF failed");
-    EVP_KDF_CTX* kctx = EVP_KDF_CTX_new(kdf);
-    EVP_KDF_free(kdf);
-    if (!kctx) throw std::runtime_error("EVP_KDF_CTX_new failed");
-
-    const char* digest = "SHA256";
-    std::vector<uint8_t> out(kPluginKeyLen);
-
-    OSSL_PARAM params[5];
-    params[0] = OSSL_PARAM_construct_utf8_string(OSSL_KDF_PARAM_DIGEST,
-                                                  const_cast<char*>(digest), 0);
-    params[1] = OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_KEY,
-                                                  const_cast<uint8_t*>(master.data()),
-                                                  master.size());
-    params[2] = OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_SALT,
-                                                  const_cast<char*>(saltBytes.constData()),
-                                                  static_cast<size_t>(saltBytes.size()));
-    params[3] = OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_INFO,
-                                                  const_cast<char*>(kHkdfInfo),
-                                                  sizeof(kHkdfInfo) - 1);
-    params[4] = OSSL_PARAM_construct_end();
-
-    const int rv = EVP_KDF_derive(kctx, out.data(), out.size(), params);
-    EVP_KDF_CTX_free(kctx);
-    if (rv <= 0) throw std::runtime_error("EVP_KDF_derive failed");
-    return out;
+    const std::vector<uint8_t> prk = hkdfExtract(salt, master);
+    return hkdfExpand(prk, info, kPluginKeyLen);
 }
 
 } // namespace

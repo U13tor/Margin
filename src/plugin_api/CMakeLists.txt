@@ -3,7 +3,7 @@
 # EventBus); STATIC archive so the EventBus.cpp impl (M0-C4) ships in the
 # same target. Each interface maps 1:1 to docs/05-host-services.md.
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core)
+find_package(Qt6 6.7 REQUIRED COMPONENTS Core)
 
 add_library(margin_plugin_api STATIC
     src/EventBus.cpp

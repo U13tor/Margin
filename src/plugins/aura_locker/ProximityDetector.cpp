@@ -20,12 +20,15 @@ void ProximityDetector::configure(qint16 rssiThresholdDbm, int awayDelaySec, int
     m_cooldownSec      = cooldownSec;
     m_awayTimer.setInterval(m_awayDelaySec * 1000);
     m_cooldownTimer.setInterval(m_cooldownSec * 1000);
-    // Dead-man's switch: 2× away delay. Short enough that a truly-away
-    // device fires within a reasonable window (60 s at default 30 s
-    // awayDelay); long enough that a brief BLE dropout (adapter hiccup,
-    // dense 2.4 GHz traffic) doesn't trip a false lock. UI clamps
-    // awayDelay to [10, 120] so the heartbeat ranges [20 s, 240 s].
-    m_heartbeatTimer.setInterval(m_awayDelaySec * 2 * 1000);
+    // Dead-man's switch: 4× away delay. Short enough that a truly-away
+    // device fires within a reasonable window (120 s at default 30 s
+    // awayDelay); long enough that a BLE dropout (adapter hiccup, dense
+    // 2.4 GHz traffic, paired-device BT Classic takeover) doesn't trip a
+    // false lock. Was 2× (= 60 s) which over-fired on every brief BLE
+    // dropout and was the dominant cause of rhythm "paused · 离开中"
+    // false positives (2026-06-26 fix-forward). UI clamps awayDelay to
+    // [10, 120] so the heartbeat ranges [40 s, 480 s].
+    m_heartbeatTimer.setInterval(m_awayDelaySec * 4 * 1000);
 }
 
 void ProximityDetector::start() {

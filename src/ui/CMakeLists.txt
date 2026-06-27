@@ -9,7 +9,7 @@
 
 # Qml/Quick bring qt_add_qml_module into scope for the subdirectories below
 # (this dir is configured before src/host, which has its own find_package).
-find_package(Qt6 6.5 REQUIRED COMPONENTS Qml Quick)
+find_package(Qt6 6.7 REQUIRED COMPONENTS Qml Quick)
 
 # Adopt the modern ':/qt/qml/' default resource prefix for QML modules; the
 # policy propagates to the module subdirectories added below (silences QTP0001).

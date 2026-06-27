@@ -102,9 +102,7 @@ jobs:
           for f in \
             build/win64-msvc-release/stage/Margin.exe \
             build/win64-msvc-release/stage/platforms/qwindows.dll \
-            build/win64-msvc-release/stage/libcrypto-3-x64.dll \
             build/win64-msvc-release/stage/licenses/LICENSE \
-            build/win64-msvc-release/stage/licenses/LICENSE-Apache-2.0.txt \
             build/win64-msvc-release/stage/plugins/margin-aura-locker.dll; do
             if [ -f "$f" ]; then echo "OK: $f"; else echo "MISSING: $f"; fi
           done
@@ -115,9 +113,7 @@ jobs:
           # 全部必须存在(hard assertion)
           test -f build/win64-msvc-release/stage/Margin.exe
           test -f build/win64-msvc-release/stage/platforms/qwindows.dll
-          test -f build/win64-msvc-release/stage/libcrypto-3-x64.dll
           test -f build/win64-msvc-release/stage/licenses/LICENSE
-          test -f build/win64-msvc-release/stage/licenses/LICENSE-Apache-2.0.txt
           test -f build/win64-msvc-release/stage/plugins/margin-aura-locker.dll
 
       - name: Upload staging dir (on failure)
@@ -247,5 +243,5 @@ jobs:
             ## License
 
             Margin 自身:LGPL-3.0-or-later(见 `licenses/LICENSE`)
-            捆绑依赖:Qt 6.5 (LGPL/商业双许可) / OpenSSL 3.x (Apache-2.0) /
+            捆绑依赖:Qt 6.7.3 (LGPL/商业双许可) /
             Inter + JetBrains Mono fonts (OFL-1.1)

@@ -23,7 +23,7 @@
 # are hand-maintained at the bottom of the corresponding .ts file.
 #
 # Qt location: we honor Qt6_DIR if set (build-smoke.sh convention), else
-# fall back to the canonical D:/Qt/6.5.3/msvc2019_64 path on Windows. On
+# fall back to the canonical D:/Qt/6.7.3/msvc2019_64 path on Windows. On
 # macOS the Qt bin dir is typically already on PATH from Homebrew/Qt Creator.
 
 set -euo pipefail

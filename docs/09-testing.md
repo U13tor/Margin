@@ -1,16 +1,16 @@
 # 09 — 测试
 
-Margin 的 5 层测试策略,以及贡献者如何在本地验证改动。
+Margin 的 5 层测试策略，以及贡献者在本地验证改动的方法。
 
 ---
 
-## 测试哲学
+## 测试原则
 
 | 原则 | 含义 |
 |---|---|
-| **同 PR 落地** | 改代码必须同 commit 加测试。禁止"先合并,后补测试" |
-| **金字塔优先** | 单元 > 集成 > 手动。避免"倒金字塔"(全靠手动测) |
-| **真实环境** | 集成测试用真实 SQLite / 真实 DPAPI / Keychain,不 mock 系统调用 |
+| **同 PR 落地** | 改代码必须同 commit 加测试，禁止"先合并后补测试" |
+| **金字塔优先** | 单元测试优于集成测试，集成测试优于手动测试；避免"倒金字塔"（全部依赖手动验证） |
+| **真实环境** | 集成测试使用真实 SQLite、真实 DPAPI 与 Keychain，不 mock 系统调用 |
 
 ---
 
@@ -36,34 +36,34 @@ Margin 的 5 层测试策略,以及贡献者如何在本地验证改动。
 
 ```bash
 grep -rEi "placeholder|XOR" src/ && exit 1   # 禁止占位 / XOR
-cmake --build build/<preset>                   # 必须编译过
+cmake --build build/<preset>                   # 必须编译通过
 ```
 
-每个 PR 必跑。
+每个 PR 必须执行。
 
 ### Layer 2 — 单元测试
 
-- 框架:Qt Test(`QTest::qExec`)
-- 范围:单函数 / 单类,依赖用 `QSignalSpy` mock
-- 跑:`ctest --test-dir build/<preset> -L unit`
-- 目标:每个核心类至少 3 个用例(正常 / 边界 / 异常)
+- 框架：Qt Test(`QTest::qExec`)
+- 范围：单函数或单类，依赖通过 `QSignalSpy` 模拟
+- 运行：`ctest --test-dir build/<preset> -L unit`
+- 目标：每个核心类至少 3 个用例（正常、边界、异常）
 
 ### Layer 3 — 集成测试
 
-- 框架:Qt Test + 真实依赖
-- 关键:**不 mock 平台 API**(DPAPI / Keychain / SQLite 真实调用)
-- 跑:`ctest --test-dir build/<preset> -L integration`
+- 框架：Qt Test + 真实依赖
+- 关键：不 mock 平台 API(DPAPI、Keychain、SQLite 均为真实调用）
+- 运行：`ctest --test-dir build/<preset> -L integration`
 
 ### Layer 4 — 烟雾测试
 
-- 框架:自定义 `tests/smoke/`
-- 范围:启动 Margin 子进程,验证启动 + 退出无残留
-- 跑:`ctest --test-dir build/<preset> -L smoke`
+- 框架：自定义 `tests/smoke/`
+- 范围：启动 Margin 子进程，验证启动与退出无残留
+- 运行：`ctest --test-dir build/<preset> -L smoke`
 
 ### Layer 5 — 手动验收
 
-每个 Milestone 完成时,维护者实机走一次 `tests/manual/M*_ACCEPTANCE.md`
-清单(实机 UI / 蓝牙配对 / 锁屏触发等)。
+每个 Milestone 完成时，维护者实机执行 `tests/manual/M*_ACCEPTANCE.md`
+清单（实机 UI、蓝牙配对、锁屏触发等）。
 
 ---
 
@@ -86,7 +86,7 @@ tests/
 │   ├── test_aura_locker_e2e.cpp
 │   └── test_screen_time_pipeline.cpp
 ├── smoke/                         # Layer 4
-│   └── smoke_runner.py            # 启 Margin → 退出 → 验证
+│   └── smoke_runner.py            # 启动 Margin → 退出 → 验证
 └── manual/                        # Layer 5
     ├── M0_ACCEPTANCE.md
     ├── M1_ACCEPTANCE.md
@@ -96,17 +96,16 @@ tests/
 
 ---
 
-## 本地一键验证(推荐)
+## 本地验证（推荐）
 
-> Windows 在 **Git Bash** 里执行(不在 PowerShell / cmd)——
-> 见 [03-build-from-source.md](03-build-from-source.md) 的环境说明。
+> Windows 下请在 **Git Bash** 中执行（不要使用 PowerShell 或 cmd)，环境说明详见
+> [03-build-from-source.md](03-build-from-source.md)。
 
 ```bash
 bash scripts/build-smoke.sh
 ```
 
-5 步全绿才能合并:configure → build → ctest → grep 审计 → 启动二进制
-验证启动行。
+该脚本依次执行 5 个步骤，全部通过后方可合并：configure、build、ctest、grep 审计与启动二进制验证。
 
 显式指定 preset:
 
@@ -117,23 +116,23 @@ bash scripts/build-smoke.sh macos-clang-debug   # macOS
 
 ---
 
-## 手动跑测试
+## 手动运行测试
 
-> **Windows 前置**:`ctest` 加载测试进程时需要 Qt DLL 在 PATH 里。跑之前
-> 确保 `Qt6_DIR\bin` 已加到 PATH(示例见
-> [03-build-from-source.md](03-build-from-source.md) 手动构建段),
-> 否则会报"找不到 Qt6Cored.dll"。**不要**在外部 Git Bash 直接跑
-> `ctest`——它的 PATH 不含 Qt,推荐在 **Developer PowerShell for VS** 里跑,
-> 或直接走 `bash scripts/build-smoke.sh`(脚本会自动设好环境)。
+> **Windows 前置**:`ctest` 加载测试进程时需要 Qt DLL 处于 PATH 中。运行前
+> 请确认 `Qt6_DIR\bin` 已加入 PATH（示例参见
+> [03-build-from-source.md](03-build-from-source.md) 手动构建章节）,
+> 否则会出现"找不到 Qt6Cored.dll"错误。不建议在外部 Git Bash 中直接执行
+> `ctest`（其 PATH 中不含 Qt)，推荐在 **Developer PowerShell for VS** 中运行，
+> 或直接使用 `bash scripts/build-smoke.sh`（脚本会自动配置环境）。
 
 ```bash
 # 全部测试
 ctest --test-dir build/win64-msvc-debug --output-on-failure
 
-# 只跑 unit
+# 仅运行 unit
 ctest --test-dir build/win64-msvc-debug -L unit
 
-# 只跑某个测试
+# 运行指定测试
 ctest --test-dir build/win64-msvc-debug -R test_event_bus --output-on-failure
 ```
 
@@ -141,7 +140,7 @@ ctest --test-dir build/win64-msvc-debug -R test_event_bus --output-on-failure
 
 ## CI 矩阵
 
-GitHub Actions 在 Windows + macOS 上跑 Debug + Release:
+GitHub Actions 在 Windows 与 macOS 上分别运行 Debug 与 Release:
 
 ```yaml
 strategy:
@@ -153,16 +152,16 @@ strategy:
       - { os: macos-latest,   preset: macos-clang-release }
 ```
 
-PR 准入门槛:
+PR 准入门槛：
 
-- ✅ Configure 成功
-- ✅ Build 成功
-- ✅ Static Audit(grep 无 placeholder / XOR)
-- ✅ Unit / Integration / Smoke 100% 通过
+- Configure 成功
+- Build 成功
+- Static Audit(grep 无 placeholder 或 XOR)
+- Unit、Integration、Smoke 全部 100% 通过
 
 ---
 
-## 写测试
+## 编写测试
 
 ### Qt Test 模板
 
@@ -187,31 +186,31 @@ void TestEventBus::testPublishSubscribe() {
     bus.publish("margin.hello.ping", {});
 
     // publish 经 Qt::QueuedConnection 派发,需要 event loop 才能落地
-    // 用 QTRY_COMPARE 而非 QTest::qWait(固定 sleep):条件达成即返回,
-    // 慢 CI 也不会 flaky
-    QTRY_COMPARE(received, 1);   // 默认 5s 超时
+    // 使用 QTRY_COMPARE 而非 QTest::qWait(固定 sleep):条件达成即返回,
+    // 在 CI 环境差异下也不会出现不稳定结果
+    QTRY_COMPARE(received, 1);   // 默认 5 秒超时
 }
 
 QTEST_MAIN(TestEventBus)
 #include "test_event_bus.moc"
 ```
 
-### 测试反模式(禁止)
+### 测试反模式（禁止）
 
 | 反模式 | 后果 | 正确做法 |
 |---|---|---|
 | "先合并后补测试" | 永远补不上 | 同 PR 必须有测试 |
-| Mock 系统调用 | 生产时失败 mock 时通过 | 集成测试用真实 DPAPI / SQLite |
-| `QTest::qWait(固定 ms)` | 慢 CI flaky / 快 CI 浪费 | `QSignalSpy::wait()` / `QTRY_VERIFY` / `QTRY_COMPARE`(条件达成即返回) |
-| 只在 Windows 测 | Mac 上崩溃 | CI Win + Mac 必跑 |
-| 只在 Debug 测 | Release 优化有 bug | CI Debug + Release 必跑 |
+| Mock 系统调用 | 生产时失败但 mock 时通过 | 集成测试使用真实 DPAPI 与 SQLite |
+| `QTest::qWait(固定 ms)` | CI 慢时易出现不稳定结果，CI 快时浪费时长 | 使用 `QSignalSpy::wait()`、`QTRY_VERIFY` 或 `QTRY_COMPARE`（条件达成即返回） |
+| 仅在 Windows 测试 | macOS 上崩溃 | CI 需 Windows 与 macOS 均执行 |
+| 仅在 Debug 测试 | Release 优化下出现缺陷 | CI 需 Debug 与 Release 均执行 |
 
 ---
 
 ## 加密 round-trip 测试
 
-`tests/integration/test_encryption_roundtrip.cpp` 是关键守护——确保
-Settings 透明加密 + CryptoService 在真实 DPAPI / Keychain 下能往返:
+`tests/integration/test_encryption_roundtrip.cpp` 是关键守护测试，确保
+Settings 透明加密与 CryptoService 在真实 DPAPI 或 Keychain 下能完成往返：
 
 ```cpp
 void TestEncryptionRoundtrip::testSettingsRoundtrip() {
@@ -228,22 +227,21 @@ void TestEncryptionRoundtrip::testCryptoServiceIsolation() {
 
 ---
 
-## 验收清单(每个 Milestone)
+## 验收清单（每个 Milestone)
 
-每个 Milestone 完成,维护者按 `tests/manual/M*_ACCEPTANCE.md` 实机走
-一次。示例(M1 Aura Locker 核心三条):
+每个 Milestone 完成时，维护者按 `tests/manual/M*_ACCEPTANCE.md` 实机执行
+一次。示例（M1 Aura Locker 核心三条）:
 
 1. 配对后离开 5 米 + 30 秒 → 屏幕锁定
 2. 解锁后 60 秒 cooldown 内不重锁
 3. 关闭蓝牙模块 → warning + 不锁屏
 
-每个 Milestone 还有"零网络流量"用例(Wireshark 抓 5 分钟,预期零
-outbound)。
+每个 Milestone 还包含"零网络流量"用例（Wireshark 抓包 5 分钟，预期出站流量为零）。
 
 ---
 
 ## 进一步阅读
 
-- 从源码构建:[03-build-from-source.md](03-build-from-source.md)
-- PR 流程与测试要求:[CONTRIBUTING.md](CONTRIBUTING.md)
-- 加密测试要求:[07-privacy-security.md](07-privacy-security.md)
+- 从源码构建：[03-build-from-source.md](03-build-from-source.md)
+- PR 流程与测试要求：[CONTRIBUTING.md](CONTRIBUTING.md)
+- 加密测试要求：[07-privacy-security.md](07-privacy-security.md)

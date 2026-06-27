@@ -5,8 +5,10 @@
 // under Paths::data()/keyring/<service>/<key>.bin (file ACL defaults to the
 // current user). Mac: deferred — see docs/12-deferred-items.md C6.
 //
-// AES-256-GCM field primitive uses OpenSSL EVP (Apache-2.0, see
-// docs/03-build-system.md vcpkg.json increment table).
+// AES-256-GCM field primitive uses Windows CNG (BCrypt). Qt 6.7 has no
+// native AES-GCM API — see docs/12-deferred-items.md D5-1. Output layout
+// nonce(12) || ciphertext || tag(16) is identical to the prior OpenSSL impl
+// shape so callers and on-disk envelope format stay unchanged.
 
 #include "Keyring.h"
 
@@ -19,19 +21,17 @@
 #include <QString>
 #include <QtGlobal>
 
-#if defined(Q_OS_WIN)
-#  include <windows.h>
-#  include <dpapi.h>
-#endif
-
-#include <openssl/evp.h>
-#include <openssl/rand.h>
-
 #include <cstring>
 #include <mutex>
 #include <optional>
 #include <stdexcept>
 #include <vector>
+
+#if defined(Q_OS_WIN)
+#  include <windows.h>
+#  include <bcrypt.h>
+#  include <dpapi.h>
+#endif
 
 namespace Margin {
 
@@ -99,7 +99,138 @@ QByteArray dpApiUnprotect(const QByteArray& ciphertext) {
     if (out.pbData) LocalFree(out.pbData);
     return result;
 }
-#endif
+
+// RAII guards so early-return paths in AES-GCM helpers do not leak handles.
+struct AlgHandleGuard {
+    BCRYPT_ALG_HANDLE h = nullptr;
+    ~AlgHandleGuard() { if (h) BCryptCloseAlgorithmProvider(h, 0); }
+};
+struct KeyHandleGuard {
+    BCRYPT_KEY_HANDLE h = nullptr;
+    ~KeyHandleGuard() { if (h) BCryptDestroyKey(h); }
+};
+
+// AES-256-GCM encrypt via CNG. Returns nonce(12) || ct || tag(16), or empty
+// on failure. The nonce is random per call (QRandomGenerator::securelySeeded
+// is CSPRNG-backed on Windows via RtlGenRandom).
+QByteArray cngAesGcmEncrypt(const QByteArray& plaintext,
+                             const uint8_t* key32) {
+    // 1. Random 12B nonce.
+    std::vector<uint8_t> nonce(kGcmNonceLen);
+    QRandomGenerator gen = QRandomGenerator::securelySeeded();
+    for (int i = 0; i < kGcmNonceLen; ++i) {
+        nonce[static_cast<size_t>(i)] = static_cast<uint8_t>(gen.generate() & 0xFFu);
+    }
+
+    // 2. Algorithm provider + GCM chaining mode.
+    BCRYPT_ALG_HANDLE alg = nullptr;
+    if (BCryptOpenAlgorithmProvider(&alg, BCRYPT_AES_ALGORITHM, nullptr, 0) != 0) {
+        return {};
+    }
+    AlgHandleGuard algGuard{alg};
+    if (BCryptSetProperty(alg, BCRYPT_CHAINING_MODE,
+                          reinterpret_cast<PUCHAR>(const_cast<PWSTR>(BCRYPT_CHAIN_MODE_GCM)),
+                          sizeof(BCRYPT_CHAIN_MODE_GCM), 0) != 0) {
+        return {};
+    }
+
+    // 3. Import the 32B raw key as a CNG symmetric key handle.
+    BCRYPT_KEY_HANDLE kh = nullptr;
+    if (BCryptGenerateSymmetricKey(alg, &kh, nullptr, 0,
+                                    const_cast<PUCHAR>(key32), kMasterKeyLen, 0) != 0) {
+        return {};
+    }
+    KeyHandleGuard keyGuard{kh};
+
+    // 4. Wire up the GCM authenticated mode info — nonce + 16B tag slot.
+    BCRYPT_AUTHENTICATED_CIPHER_MODE_INFO info;
+    BCRYPT_INIT_AUTH_MODE_INFO(info);
+    info.pbNonce = nonce.data();
+    info.cbNonce = kGcmNonceLen;
+    std::vector<uint8_t> tag(kGcmTagLen);
+    info.pbTag = tag.data();
+    info.cbTag = kGcmTagLen;
+
+    // 5. Encrypt. AES-GCM is a stream cipher — ciphertext length equals
+    // plaintext length, no padding. BCryptEncrypt writes the tag at the end
+    // of the call via info.pbTag.
+    QByteArray ciphertext(plaintext.size(), '\0');
+    ULONG ctLen = 0;
+    const NTSTATUS rv = BCryptEncrypt(
+        kh,
+        reinterpret_cast<PUCHAR>(const_cast<char*>(plaintext.constData())),
+        static_cast<ULONG>(plaintext.size()),
+        &info, nullptr, 0,
+        reinterpret_cast<PUCHAR>(ciphertext.data()),
+        static_cast<ULONG>(ciphertext.size()),
+        &ctLen, 0);
+    if (rv != 0) {
+        return {};
+    }
+    ciphertext.resize(static_cast<int>(ctLen));
+
+    // 6. Pack nonce(12) || ct || tag(16).
+    QByteArray packed;
+    packed.reserve(kGcmNonceLen + static_cast<int>(ctLen) + kGcmTagLen);
+    packed.append(reinterpret_cast<const char*>(nonce.data()), kGcmNonceLen);
+    packed.append(ciphertext);
+    packed.append(reinterpret_cast<const char*>(tag.data()), kGcmTagLen);
+    return packed;
+}
+
+// AES-256-GCM decrypt via CNG. packed layout: nonce(12) || ct || tag(16).
+// Returns empty QByteArray on tag mismatch or malformed input.
+QByteArray cngAesGcmDecrypt(const QByteArray& packed, const uint8_t* key32) {
+    if (packed.size() < kGcmNonceLen + kGcmTagLen) return {};
+
+    const int ctLen = packed.size() - kGcmNonceLen - kGcmTagLen;
+    const uint8_t* nonce = reinterpret_cast<const uint8_t*>(packed.constData());
+    const uint8_t* ct    = nonce + kGcmNonceLen;
+    const uint8_t* tag   = ct + ctLen;
+
+    BCRYPT_ALG_HANDLE alg = nullptr;
+    if (BCryptOpenAlgorithmProvider(&alg, BCRYPT_AES_ALGORITHM, nullptr, 0) != 0) {
+        return {};
+    }
+    AlgHandleGuard algGuard{alg};
+    if (BCryptSetProperty(alg, BCRYPT_CHAINING_MODE,
+                          reinterpret_cast<PUCHAR>(const_cast<PWSTR>(BCRYPT_CHAIN_MODE_GCM)),
+                          sizeof(BCRYPT_CHAIN_MODE_GCM), 0) != 0) {
+        return {};
+    }
+
+    BCRYPT_KEY_HANDLE kh = nullptr;
+    if (BCryptGenerateSymmetricKey(alg, &kh, nullptr, 0,
+                                    const_cast<PUCHAR>(key32), kMasterKeyLen, 0) != 0) {
+        return {};
+    }
+    KeyHandleGuard keyGuard{kh};
+
+    BCRYPT_AUTHENTICATED_CIPHER_MODE_INFO info;
+    BCRYPT_INIT_AUTH_MODE_INFO(info);
+    info.pbNonce = const_cast<PUCHAR>(nonce);
+    info.cbNonce = kGcmNonceLen;
+    info.pbTag = const_cast<PUCHAR>(tag);
+    info.cbTag = kGcmTagLen;
+
+    QByteArray plaintext(ctLen, '\0');
+    ULONG ptLen = 0;
+    const NTSTATUS rv = BCryptDecrypt(
+        kh,
+        const_cast<PUCHAR>(ct), static_cast<ULONG>(ctLen),
+        &info, nullptr, 0,
+        reinterpret_cast<PUCHAR>(plaintext.data()),
+        static_cast<ULONG>(plaintext.size()),
+        &ptLen, 0);
+    if (rv != 0) {
+        // AUTH_TAG verification failure returns STATUS_AUTH_TAG_MISMATCH —
+        // surface as empty QByteArray (caller-visible signal of corruption).
+        return {};
+    }
+    plaintext.resize(static_cast<int>(ptLen));
+    return plaintext;
+}
+#endif // defined(Q_OS_WIN)
 
 // ── On-disk path for (service, key) ──────────────────────────────────────
 // Win-only: Mac branch never reaches this (Keychain stores its own data).
@@ -226,85 +357,34 @@ void Keyring::clearMemory() {
 
 // ── AES-256-GCM field primitive ─────────────────────────────────────────
 // Layout: nonce(12) || ciphertext(same length as plaintext) || tag(16).
+// Win uses CNG (BCrypt); Mac is gated by C6 — see top-of-file note.
 
 QByteArray Keyring::encryptField(const QByteArray& plaintext,
                                  const std::vector<uint8_t>& key) {
     if (static_cast<int>(key.size()) != kMasterKeyLen) return {};
-
-    std::vector<uint8_t> nonce(kGcmNonceLen);
-    if (RAND_bytes(nonce.data(), kGcmNonceLen) != 1) return {};
-
-    EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
-    if (!ctx) return {};
-
-    QByteArray ciphertext(plaintext.size(), '\0');
-    std::vector<uint8_t> tag(kGcmTagLen);
-    int len = 0;
-    int total = 0;
-    bool ok = true;
-
-    if (EVP_EncryptInit_ex(ctx, EVP_aes_256_gcm(), nullptr, nullptr, nullptr) != 1) ok = false;
-    if (ok && EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, kGcmNonceLen, nullptr) != 1) ok = false;
-    if (ok && EVP_EncryptInit_ex(ctx, nullptr, nullptr,
-            const_cast<uint8_t*>(key.data()), nonce.data()) != 1) ok = false;
-    if (ok && EVP_EncryptUpdate(ctx,
-            reinterpret_cast<uint8_t*>(ciphertext.data()), &len,
-            reinterpret_cast<const uint8_t*>(plaintext.constData()),
-            static_cast<int>(plaintext.size())) != 1) ok = false;
-    total = len;
-    if (ok && EVP_EncryptFinal_ex(ctx,
-            reinterpret_cast<uint8_t*>(ciphertext.data()) + len, &len) != 1) ok = false;
-    total += len;
-    if (ok && EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, kGcmTagLen, tag.data()) != 1) ok = false;
-
-    EVP_CIPHER_CTX_free(ctx);
-    if (!ok) return {};
-    ciphertext.truncate(total);
-
-    QByteArray packed;
-    packed.reserve(kGcmNonceLen + total + kGcmTagLen);
-    packed.append(reinterpret_cast<const char*>(nonce.data()), kGcmNonceLen);
-    packed.append(ciphertext);
-    packed.append(reinterpret_cast<const char*>(tag.data()), kGcmTagLen);
-    return packed;
+#if defined(Q_OS_WIN)
+    return cngAesGcmEncrypt(plaintext, key.data());
+#elif defined(Q_OS_MAC)
+    Q_UNUSED(plaintext)
+    qFatal("macOS AES-GCM field primitive not yet implemented (C6 deferred)");
+    return {};
+#else
+#  error "Unsupported platform for Keyring::encryptField"
+#endif
 }
 
 QByteArray Keyring::decryptField(const QByteArray& packed,
                                  const std::vector<uint8_t>& key) {
     if (static_cast<int>(key.size()) != kMasterKeyLen) return {};
-    if (packed.size() < kGcmNonceLen + kGcmTagLen) return {};
-
-    const int ctLen = packed.size() - kGcmNonceLen - kGcmTagLen;
-    const uint8_t* nonce = reinterpret_cast<const uint8_t*>(packed.constData());
-    const uint8_t* ct    = nonce + kGcmNonceLen;
-    const uint8_t* tag   = ct + ctLen;
-
-    EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
-    if (!ctx) return {};
-
-    QByteArray plaintext(ctLen, '\0');
-    int len = 0;
-    int total = 0;
-    bool ok = true;
-
-    if (EVP_DecryptInit_ex(ctx, EVP_aes_256_gcm(), nullptr, nullptr, nullptr) != 1) ok = false;
-    if (ok && EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, kGcmNonceLen, nullptr) != 1) ok = false;
-    if (ok && EVP_DecryptInit_ex(ctx, nullptr, nullptr,
-            const_cast<uint8_t*>(key.data()), nonce) != 1) ok = false;
-    if (ok && EVP_DecryptUpdate(ctx,
-            reinterpret_cast<uint8_t*>(plaintext.data()), &len,
-            ct, ctLen) != 1) ok = false;
-    total = len;
-    if (ok && EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_TAG, kGcmTagLen,
-            const_cast<uint8_t*>(tag)) != 1) ok = false;
-    if (ok && EVP_DecryptFinal_ex(ctx,
-            reinterpret_cast<uint8_t*>(plaintext.data()) + len, &len) != 1) ok = false;
-    total += len;
-
-    EVP_CIPHER_CTX_free(ctx);
-    if (!ok) return {};
-    plaintext.truncate(total);
-    return plaintext;
+#if defined(Q_OS_WIN)
+    return cngAesGcmDecrypt(packed, key.data());
+#elif defined(Q_OS_MAC)
+    Q_UNUSED(packed)
+    qFatal("macOS AES-GCM field primitive not yet implemented (C6 deferred)");
+    return {};
+#else
+#  error "Unsupported platform for Keyring::decryptField"
+#endif
 }
 
 } // namespace Margin

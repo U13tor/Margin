@@ -4,7 +4,7 @@
 # margin_core) owns Logger + Settings + SystemTray. EventBus / PluginManager
 # will hang off HostCore in later milestones.
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Qml Quick Widgets Svg)
+find_package(Qt6 6.7 REQUIRED COMPONENTS Core Gui Qml Quick Widgets Svg)
 
 add_subdirectory(core)
 add_subdirectory(services)

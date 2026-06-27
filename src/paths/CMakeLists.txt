@@ -11,5 +11,5 @@ target_include_directories(margin_paths PUBLIC
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src>
 )
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core)
+find_package(Qt6 6.7 REQUIRED COMPONENTS Core)
 target_link_libraries(margin_paths PUBLIC Qt6::Core)

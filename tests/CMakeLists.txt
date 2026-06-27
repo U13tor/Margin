@@ -2,7 +2,7 @@
 # skeleton; M0-C5b adds integration tests (plugin load/unload). M0-C8 adds
 # Keyring + per-plugin crypto tests. M0-C9 will expand to smoke + CI matrix.
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Qml Quick Test Widgets Sql)
+find_package(Qt6 6.7 REQUIRED COMPONENTS Core Gui Qml Quick Test Widgets Sql)
 
 # Layer 2: Unit tests (per docs/09-testing.md §3).
 add_executable(test_event_bus unit/test_event_bus.cpp)
@@ -99,8 +99,8 @@ if(WIN32)
     set_tests_properties(test_autostart_win PROPERTIES LABELS "unit")
 endif()
 
-# M0-C8: per-plugin crypto service (HKDF + AES-256-GCM via OpenSSL). Runs on
-# all platforms — does not touch the OS keyring.
+# M0-C8: per-plugin crypto service (HKDF via Qt HMAC + AES-256-GCM via Win
+# CNG). Runs on all platforms — does not touch the OS keyring.
 add_executable(test_crypto_service unit/test_crypto_service.cpp)
 target_link_libraries(test_crypto_service PRIVATE
     margin_security

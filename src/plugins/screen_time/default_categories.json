@@ -1,14 +1,14 @@
 {
   "rules": [
-    { "match": "Code.exe|Code - Insiders.exe|VSCodium.exe|idea64.exe|idea.exe|devenv.exe|rider64.exe|pycharm64.exe|goland64.exe|webstorm64.exe|rustrover64.exe|clion64.exe|phpstorm64.exe|rubymine64.exe|datagrip64.exe|studio64.exe|studio.exe|cursor.exe|Trae.exe|Qoder.exe|Windsurf.exe|Zed.exe|sublime_text.exe|neovim.exe|notepad\\+\\+.exe", "category": "Development" },
-    { "match": "chrome.exe|msedge.exe|firefox.exe|brave.exe|opera.exe|vivaldi.exe|Arc.exe", "category": "Browser" },
-    { "match": "Slack.exe|Discord.exe|WeChat.exe|WXWork.exe|Telegram.exe|Teams.exe|QQ.exe|DingTalk.exe|Feishu.exe|Lark.exe", "category": "Communication" },
-    { "match": "Spotify.exe|foobar2000.exe|vlc.exe|mpv.exe|PotPlayerMini64.exe|Music.exe|TV.exe", "category": "Media" },
-    { "match": "Explorer.exe|WinRAR.exe|7zFM.exe|TotalCMD64.exe", "category": "System" },
-    { "match": "WINWORD.exe|EXCEL.exe|POWERPNT.exe|ONENOTE.exe|OUTLOOK.exe|wps.exe|et.exe|wpp.exe", "category": "Office" },
-    { "match": "Notion.exe|Obsidian.exe|Typora.exe|Logseq.exe", "category": "Notes" },
-    { "match": "steam.exe|EpicGamesLauncher.exe|Battle.net.exe|GenshinImpact.exe|YuanShen.exe", "category": "Games" },
-    { "match": "photoshop.exe|Illustrator.exe|Premiere.exe|AfterFX.exe|Blender.exe|Figma.exe|GIMP.exe|Krita.exe", "category": "Design" },
-    { "match": "Terminal.exe|WindowsTerminal.exe|cmd.exe|powershell.exe|pwsh.exe|alacritty.exe|wezterm-gui.exe", "category": "Terminal" }
+    { "match": "Code.exe|Code - Insiders.exe|VSCodium.exe|idea64.exe|idea.exe|devenv.exe|rider64.exe|pycharm64.exe|goland64.exe|webstorm64.exe|rustrover64.exe|clion64.exe|phpstorm64.exe|rubymine64.exe|datagrip64.exe|studio64.exe|studio.exe|cursor.exe|Trae.exe|Qoder.exe|Windsurf.exe|Zed.exe|sublime_text.exe|neovim.exe|notepad\\+\\+.exe|codex.exe|Antigravity IDE.exe|Antigravity.exe|vim.exe|gvim.exe|emacs.exe|neovide.exe|Postman.exe|Insomnia.exe|Docker Desktop.exe|SourceTree.exe|GitKraken.exe|fork.exe|GitHubDesktop.exe|GitHub.exe|x64dbg.exe|x32dbg.exe", "category": "Development" },
+    { "match": "chrome.exe|msedge.exe|firefox.exe|brave.exe|opera.exe|vivaldi.exe|Arc.exe|QQBrowser.exe|360Chrome.exe|360se.exe|SogouExplorer.exe|UCBrowser.exe|duckduckgo.exe|waterfox.exe|palemoon.exe|maxthon.exe", "category": "Browser" },
+    { "match": "Slack.exe|Discord.exe|WeChat.exe|WXWork.exe|Telegram.exe|Teams.exe|QQ.exe|DingTalk.exe|Feishu.exe|Lark.exe|WemeetApp.exe|Zoom.exe|Skype.exe|WhatsApp.exe|Signal.exe|Webex.exe|webexexe.exe|Element.exe", "category": "Communication" },
+    { "match": "Spotify.exe|foobar2000.exe|vlc.exe|mpv.exe|PotPlayerMini64.exe|Music.exe|TV.exe|AIMP.exe|mpc-hc64.exe|mpc-be64.exe|KMPlayer.exe|GOM.exe|iTunes.exe|obs64.exe|cloudmusic.exe|Kugou.exe|KwMusic.exe|QQPlayer.exe|bilibili.exe|Iqiyi.exe|Youku.exe|Audacity.exe", "category": "Media" },
+    { "match": "Explorer.exe|WinRAR.exe|7zFM.exe|TotalCMD64.exe|Everything.exe|Far.exe|dopus.exe|FreeCommander.exe|XYplorer.exe|Bandizip.exe|PeaZip.exe|taskmgr.exe|regedit.exe|mmc.exe|Rufus.exe", "category": "System" },
+    { "match": "WINWORD.exe|EXCEL.exe|POWERPNT.exe|ONENOTE.exe|OUTLOOK.exe|wps.exe|et.exe|wpp.exe|MSACCESS.exe|visio.exe|winproj.exe|soffice.exe|soffice.bin|xmind.exe|MindManager.exe", "category": "Office" },
+    { "match": "Notion.exe|Obsidian.exe|Typora.exe|Logseq.exe|Evernote.exe|Yinxiang.exe|Yuque.exe|Joplin.exe|Wiz.exe|flomo.exe|Simplenote.exe", "category": "Notes" },
+    { "match": "steam.exe|EpicGamesLauncher.exe|Battle.net.exe|GenshinImpact.exe|YuanShen.exe|WeGame.exe|MinecraftLauncher.exe|Minecraft.exe|Riot Client.exe|LeagueClient.exe|VALORANT.exe|cs2.exe|Dota2.exe|UbisoftConnect.exe|upc.exe|Origin.exe|galaxy64.exe", "category": "Games" },
+    { "match": "photoshop.exe|Illustrator.exe|Premiere.exe|AfterFX.exe|Blender.exe|Figma.exe|GIMP.exe|Krita.exe|InDesign.exe|Lightroom.exe|Acrobat.exe|XD.exe|Audition.exe|MediaEncoder.exe|Animate.exe|Dreamweaver.exe|Affinity Photo.exe|Affinity Designer.exe|Affinity Publisher.exe|CLIP STUDIO PAINT.exe|sai2.exe|PaintToolSAI.exe|DaVinci Resolve.exe|Maya.exe|3dsmax.exe|ZBrush.exe|Cinema 4D.exe|Houdini.exe|SketchUp.exe|Rhinoceros.exe|AutoCAD.exe|FreeCAD.exe", "category": "Design" },
+    { "match": "Terminal.exe|WindowsTerminal.exe|cmd.exe|powershell.exe|pwsh.exe|alacritty.exe|wezterm-gui.exe|mintty.exe|wsl.exe|bash.exe|sh.exe|ConEmu64.exe|Cmder.exe|putty.exe|kitty.exe|MobaXterm.exe|xshell.exe|Hyper.exe|Tabby.exe", "category": "Terminal" }
   ]
 }

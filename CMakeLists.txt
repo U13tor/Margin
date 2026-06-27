@@ -58,7 +58,7 @@ include(${CMAKE_SOURCE_DIR}/cmake/fetch_fonts.cmake)
 # + per-.ts custom commands + AUTORCC. Language switcher (Settings → General
 # → Language) reloads :/i18n/host_<lang>.qm via QTranslator + retranlates
 # the QML engine without restart (HostCore::applyLanguage).
-find_package(Qt6 6.5 REQUIRED COMPONENTS LinguistTools)
+find_package(Qt6 6.7 REQUIRED COMPONENTS LinguistTools)
 include(${CMAKE_SOURCE_DIR}/cmake/build_i18n.cmake)
 include(${CMAKE_SOURCE_DIR}/cmake/plugin_i18n.cmake)  # PR2: margin_plugin_i18n() for plugins
 
@@ -99,36 +99,14 @@ if(WIN32)
     #    in the NSIS package.
     install(TARGETS Margin RUNTIME DESTINATION .)
 
-    # 2) OpenSSL (Apache-2.0) — vcpkg manifest mode ships these DLLs in
-    #    vcpkg_installed/x64-windows/bin/. windeployqt does NOT bundle non-Qt
-    #    DLLs, so copy explicitly. OPTIONAL guards against vcpkg renaming
-    #    the DLLs between OpenSSL 1.x/3.x.
-    install(FILES
-            ${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/bin/libcrypto-3-x64.dll
-            ${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/bin/libssl-3-x64.dll
-        DESTINATION .
-        OPTIONAL)
-
-    # 3) Licenses — LGPL (host) + font OFL + OpenSSL NOTICE + Apache-2.0
-    #    full text. The Apache-2.0 file is fetched by the release workflow
-    #    (.github/workflows/release.yml) before configure; locally it's
-    #    optional so `cmake --install` for dev staging doesn't fail if absent.
-    #    See docs/02-source-layout.md §2.1 "licenses\" dir in install layout.
+    # 2) Licenses — LGPL (host) + font OFL. OpenSSL was removed in D5-1
+    #    (Qt HMAC + Win CNG replace it), so its DLLs / NOTICE / Apache-2.0
+    #    full text no longer ship. See docs/02-source-layout.md §2.1.
     install(FILES LICENSE DESTINATION licenses)
     install(DIRECTORY src/resources/fonts/ DESTINATION licenses
             FILES_MATCHING PATTERN "LICENSE-*.txt")
-    install(FILES packaging/licenses/LICENSE-OpenSSL.txt DESTINATION licenses)
-    install(CODE "
-        set(_apache_src \"${CMAKE_SOURCE_DIR}/packaging/licenses/LICENSE-Apache-2.0.txt\")
-        if(EXISTS \"\${_apache_src}\")
-            file(INSTALL \"\${_apache_src}\"
-                 DESTINATION \"\${CMAKE_INSTALL_PREFIX}/licenses\")
-        else()
-            message(STATUS \"Apache-2.0 full text not present at \${_apache_src} (skipped; release.yml fetches it during CI packaging)\")
-        endif()
-    ")
 
-    # 4) Official plugins. Built to <build>/src/host/plugins/ by each
+    # 3) Official plugins. Built to <build>/src/host/plugins/ by each
     #    plugin's POST_BUILD step (see src/plugins/*/CMakeLists.txt) and
     #    scanned at runtime by PluginManager via Paths::officialPlugins()
     #    (= applicationDirPath() + "/plugins"). The hello reference
@@ -144,7 +122,7 @@ if(WIN32)
                 PATTERN "*.manifest.json"
             REGEX "margin-hello" EXCLUDE)
 
-    # 5) windeployqt at install time. Runs against the staged Margin.exe in
+    # 4) windeployqt at install time. Runs against the staged Margin.exe in
     #    ${CMAKE_INSTALL_PREFIX}, so the Qt DLLs / platforms / tls / etc.
     #    land inside the install tree that NSIS then packages into the
     #    installer.
@@ -183,7 +161,7 @@ if(WIN32)
         endif()
     ")
 
-    # 6) NSIS installer. CMake's stock NSIS.template.in hardcodes
+    # 5) NSIS installer. CMake's stock NSIS.template.in hardcodes
     #    `RequestExecutionLevel admin` (triggers UAC) AND runs a
     #    SetShellVarContext all dance in .onInit that flips $LOCALAPPDATA
     #    to C:\ProgramData on admin accounts. `CPACK_NSIS_TEMPLATE_FILE`

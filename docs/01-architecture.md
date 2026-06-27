@@ -1,7 +1,7 @@
 # 01 — 架构
 
-Margin 是单进程、多插件、事件驱动的桌面应用。本文档解释 Host / Plugin /
-EventBus 三层的关系,以及进程的启动与退出时序。
+Margin 是单进程、多插件、事件驱动的桌面应用。本文档说明 Host、Plugin
+与 EventBus 三层之间的关系，以及进程的启动与退出时序。
 
 ---
 
@@ -9,11 +9,11 @@ EventBus 三层的关系,以及进程的启动与退出时序。
 
 | 原则 | 含义 |
 |---|---|
-| **plugin-first** | 业务逻辑全部在插件里。Host 只提供基础设施(EventBus、Database、Logger 等),不实现"什么时候锁屏""番茄钟多长"。 |
-| **deny-by-default** | 插件能用的能力必须在 `manifest.json` 显式声明,且首次加载时用户授权。未授权的句柄是 `nullptr`。 |
-| **platform-isolated** | 平台 API(Win32 / macOS)只在 `src/host/platform/<os>/`,共享代码不含 `#ifdef Q_OS_WIN`。 |
-| **one-bus** | 所有跨组件通信走单一 EventBus。插件之间不能直接调用对方的符号。 |
-| **100% local** | 零网络调用。所有数据本地存储。 |
+| **plugin-first** | 业务逻辑全部位于插件中。Host 仅提供基础设施（EventBus、Database、Logger 等），不实现"何时锁屏"或"番茄钟时长"等业务策略 |
+| **deny-by-default** | 插件可使用的能力必须在 `manifest.json` 中显式声明，且首次加载时需用户授权。未授权的句柄为 `nullptr` |
+| **platform-isolated** | 平台 API(Windows 与 macOS）仅位于 `src/host/platform/<os>/`，共享代码中不含 `#ifdef Q_OS_WIN` |
+| **one-bus** | 所有跨组件通信走单一 EventBus。插件之间不能直接调用对方的符号 |
+| **100% local** | 零网络调用，所有数据本地存储 |
 
 ---
 
@@ -42,12 +42,12 @@ EventBus 三层的关系,以及进程的启动与退出时序。
 └─────────────────────────────────────────────────────────────┘
 ```
 
-关键决策:
+关键决策：
 
-1. **单进程**——Host 与所有插件跑在同一进程。不用子进程隔离(避免 IPC 复杂度)。
-2. **DLL 动态加载**——插件用 `LoadLibrary` / `dlopen` 加载,通过 C++ vtable 调用。
-3. **EventBus 是唯一通道**——跨插件协作必须通过 EventBus,不能直接调用其他插件符号。
-4. **UI 在主线程**——所有 QML 在主线程渲染;后台任务用 `QThread` 或 `QtConcurrent`。
+1. **单进程**:Host 与所有插件运行在同一进程中，不采用子进程隔离（以避免 IPC 引入的复杂度）。
+2. **DLL 动态加载**：插件通过 `LoadLibrary` 或 `dlopen` 加载，经 C++ vtable 调用。
+3. **EventBus 为唯一通道**：跨插件协作必须通过 EventBus，不允许直接调用其他插件的符号。
+4. **UI 在主线程**：所有 QML 在主线程渲染；后台任务使用 `QThread` 或 `QtConcurrent`。
 
 ---
 
@@ -72,12 +72,12 @@ EventBus 三层的关系,以及进程的启动与退出时序。
    # 事件循环,插件开始工作
 ```
 
-时序约束(违反会导致启动失败或数据丢失):
+时序约束（违反将导致启动失败或数据丢失）:
 
-- `Paths::ensureDirs()` 必须最先——Logger 要写 `logs/margin.log`
-- `Keyring` 必须在 `Database` 之前——敏感字段加解密需要 master key
-- `EventBus` 必须在 `PluginManager` 之前——插件 `onLoad` 时要订阅主题
-- `SystemTray` 必须在所有插件 `onLoad` 之后——托盘菜单要各插件的贡献项
+- `Paths::ensureDirs()` 必须最先执行——Logger 需要写入 `logs/margin.log`
+- `Keyring` 必须在 `Database` 之前完成——敏感字段加解密依赖 master key
+- `EventBus` 必须在 `PluginManager` 之前就绪——插件 `onLoad` 时需订阅主题
+- `SystemTray` 必须在所有插件 `onLoad` 完成之后创建——托盘菜单需要各插件贡献的菜单项
 
 ---
 
@@ -96,7 +96,7 @@ EventBus 三层的关系,以及进程的启动与退出时序。
 [QCoreApplication::quit()]
 ```
 
-验证方法:
+验证方法：
 
 ```bash
 # Windows
@@ -112,17 +112,17 @@ tail -1 ~/Library/Logs/Margin/margin.log  # 应输出 [shutdown complete]
 
 ## 三种角色
 
-| 角色 | 职责 | 不能做什么 |
+| 角色 | 职责 | 限制 |
 |---|---|---|
-| **Host** | 进程入口、生命周期、基础设施服务、平台抽象 | 不实现业务逻辑("什么时候锁屏"等) |
-| **Plugin** | 业务逻辑、`manifest.json` 声明权限、EventBus 协作 | 不直接调 OS API(走 PlatformBackend)、不直接访问文件系统(走 HostServices) |
-| **User** | 安装 / 卸载、授权权限、配置、查看 / 导出 / 删除数据 | — |
+| **Host** | 进程入口、生命周期管理、基础设施服务与平台抽象 | 不实现业务逻辑（"何时锁屏"等） |
+| **Plugin** | 业务逻辑实现、在 `manifest.json` 中声明权限、通过 EventBus 协作 | 不直接调用 OS API（需走 PlatformBackend)、不直接访问文件系统（需走 HostServices) |
+| **User** | 安装与卸载、权限授权、配置、查看与导出或删除数据 | — |
 
 ---
 
 ## 进一步阅读
 
-- 插件如何写:[04-plugin-spec.md](04-plugin-spec.md)
-- 插件能调什么 API:[05-host-services.md](05-host-services.md)
-- 隐私与加密细节:[07-privacy-security.md](07-privacy-security.md)
-- 平台支持矩阵:[06-platform-support.md](06-platform-support.md)
+- 插件编写方式：[04-plugin-spec.md](04-plugin-spec.md)
+- 插件可调用的 API:[05-host-services.md](05-host-services.md)
+- 隐私与加密细节：[07-privacy-security.md](07-privacy-security.md)
+- 平台支持矩阵：[06-platform-support.md](06-platform-support.md)

@@ -20,13 +20,13 @@
 //     handled implicitly because remainingSeconds stops ticking during
 //     pause (e.g. Aura away).
 //
-// UX note on 推迟 in BreakActive: PomodoroTimer::postponeBreak() is a
-// no-op outside BreakDue (the API semantics are "don't start break yet").
-// During an active break we can't truly "推迟" — so the button falls back
-// to endBreakEarly() and the user understands they're ending the break
-// early. The enabled gate keeps the contract honest: zero postpones
-// remaining = greyed out. A true "extend break by 5 min" semantics needs
-// a new PomodoroTimer API (v1.1).
+// UX note on 推迟 in BreakActive (2026-06-27): the previous "推迟 5 分钟"
+// button was removed because postponeBreak() is a no-op in BreakActive
+// (its API semantics are "don't start break yet" — BreakDue → Working).
+// The button silently fell back to endBreakEarly() (skip semantics), so
+// the label lied about what would happen. A true "extend break by 5 min"
+// semantics needs a new PomodoroTimer API; the 跳过 button covers the
+// dismiss-early intent until then.
 
 import QtQuick
 import QtQuick.Layouts
@@ -52,12 +52,17 @@ Window {
     property int doneRemaining: doneCountdownSec
 
     // Watch PomodoroTimer signals to drive mode transitions. breakStarted
-    // resets to "active" (next break cycle after a previous done card);
-    // breakEnded → "done" (natural end); skipped → C++ hides immediately,
-    // mode reset is just defensive.
+    // resets to "active" (next break cycle after a previous done card) AND
+    // rewinds doneRemaining so a second done-card cycle counts down from
+    // doneCountdownSec instead of starting at 0 (Bug P, 2026-06-27).
+    // breakEnded → "done"; skipped → C++ hides immediately, mode reset is
+    // just defensive.
     Connections {
         target: rhythm
-        function onBreakStarted() { root.mode = "active" }
+        function onBreakStarted() {
+            root.mode = "active"
+            root.doneRemaining = root.doneCountdownSec
+        }
         function onBreakEnded() { root.mode = "done" }
         function onSkipped() { root.mode = "active" }
     }
@@ -167,18 +172,6 @@ Window {
                 text: qsTr("跳过")
                 iconSource: "qrc:/icons/icon-skip.svg"
                 variant: MButton.Variant.Secondary
-                onClicked: rhythm.endBreakEarly()
-            }
-
-            MButton {
-                text: qsTr("推迟 5 分钟")
-                iconSource: "qrc:/icons/icon-pause.svg"
-                variant: MButton.Variant.Ghost
-                enabled: rhythm.postponesRemaining > 0
-                // postponeBreak() is no-op in BreakActive. Fall back to
-                // endBreakEarly() so the button at least ends the break
-                // rather than silently doing nothing. True extend-break
-                // semantics needs a new API (v1.1).
                 onClicked: rhythm.endBreakEarly()
             }
         }

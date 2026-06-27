@@ -1,6 +1,6 @@
 # HostServices impl layer. Not exported to plugins (they see only margin_plugin_api).
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Qml Sql)
+find_package(Qt6 6.7 REQUIRED COMPONENTS Core Qml Sql)
 
 add_library(margin_services STATIC
     DatabaseImpl.cpp

@@ -36,6 +36,11 @@ class PomodoroTimer : public QObject {
     // ProgressDots row in RhythmTab. Default 5 (typical work-day budget).
     // Pure display — does NOT gate transitions or auto-stop the work cycle.
     Q_PROPERTY(int targetRounds READ targetRounds WRITE setTargetRounds NOTIFY targetRoundsChanged)
+    // BreakActive natural completion automatically starts the next work round
+    // when autoContinueCycle is true (default). False restores the v1.0
+    // behavior of returning to Idle after each break, for users who want
+    // manual control over session pacing (e.g. autostart-disabled hosts).
+    Q_PROPERTY(bool autoContinueCycle READ autoContinueCycle WRITE setAutoContinueCycle NOTIFY autoContinueCycleChanged)
     Q_PROPERTY(int postponesRemaining READ postponesRemaining NOTIFY postponesRemainingChanged)
     Q_PROPERTY(int breaksCompleted READ breaksCompleted NOTIFY breaksCompletedChanged)
     // Today-scoped break counter (rolls over at calendar midnight). Distinct
@@ -44,6 +49,11 @@ class PomodoroTimer : public QObject {
     Q_PROPERTY(int todayCompletedRounds READ todayCompletedRounds
                NOTIFY todayCompletedRoundsChanged)
     Q_PROPERTY(bool paused READ paused NOTIFY pausedChanged STORED false)
+    // Highest-priority active pause reason as a localized string for the
+    // RhythmTab paused chip. Empty when not paused. Bound to pausedChanged
+    // so the chip text flips when the dominant reason changes (e.g. user
+    // paused → Aura also triggers away → chip upgrades to "离开中").
+    Q_PROPERTY(QString pauseReasonsText READ pauseReasonsText NOTIFY pausedChanged)
 
 public:
     enum class State {
@@ -54,6 +64,26 @@ public:
     };
     Q_ENUM(State)
 
+    // PauseReason bitmask — drives the paused latch. Three external sources
+    // can pause the countdown (user tray/QML toggle, InputMonitor idle,
+    // Aura away); the timer stays paused while ANY bit is set and only
+    // resumes when the mask is fully clear. This prevents the historical
+    // bug where a brief Aura BLE dropout (false away) would unfreeze a
+    // user who had manually paused, or where Aura back would resume
+    // despite Idle still being active.
+    //
+    // 2026-06-26 fix-forward: previously a single `bool m_paused` was
+    // flipped by all three sources via setPaused(bool); see
+    // docs/11-roadmap.md M3 review §D.
+    enum class PauseReason : uint8_t {
+        None     = 0,
+        User     = 1 << 0,   // tray toggle / QML pause button / legacy setPaused
+        Idle     = 1 << 1,   // InputMonitorService::userIdleStateChanged
+        AuraAway = 1 << 2,   // margin.aura.away via RhythmPlugin subscription
+    };
+    Q_ENUM(PauseReason)
+    Q_DECLARE_FLAGS(PauseReasonMask, PauseReason)
+
     explicit PomodoroTimer(QObject* parent = nullptr);
 
     // ── Configuration ──
@@ -61,10 +91,12 @@ public:
     int breakMinutes() const   { return m_breakMinutes; }
     int maxPostpones() const   { return m_maxPostpones; }
     int targetRounds() const   { return m_targetRounds; }
+    bool autoContinueCycle() const { return m_autoContinueCycle; }
     void setWorkMinutes(int minutes);
     void setBreakMinutes(int minutes);
     void setMaxPostpones(int count);
     void setTargetRounds(int rounds);
+    void setAutoContinueCycle(bool enabled);
 
     // ── Live state ──
     State   state() const          { return m_state; }
@@ -77,6 +109,11 @@ public:
     // to. Exposed so RhythmPlugin can persist it alongside the count.
     QDate   todayDate() const { return m_todayDate; }
     bool    paused() const { return m_paused; }
+    // Bitmask of all currently-active pause reasons. UI / tests can read it
+    // to distinguish "paused by user" from "paused because away". pauseReasonsText
+    // is the localized version; pauseMask() is the raw enum for programmatic use.
+    PauseReasonMask pauseMask() const { return m_pauseMask; }
+    QString pauseReasonsText() const;
 
     // Push loaded state from RhythmPlugin::loadSettings. Both are raw
     // setters — no rollback logic here; caller is expected to invoke
@@ -150,12 +187,31 @@ public slots:
     void endBreakEarly();
 
     /// Pause / resume the countdown without leaving the current state.
-    /// Used by InputMonitorService::userIdleStateChanged (C2) and Aura's
-    /// away/back events (C5). Idempotent — calling with the same value
-    /// twice is a no-op. Pausing during BreakActive is also honored:
-    /// if the user is away from the keyboard during a stretch break,
-    /// the break should pause too (they're not at the desk doing it).
+    /// Routes through PauseReason::User — the historical entry point for
+    /// tray toggle, QML pause button, and existing tests. New external
+    /// sources (Idle / Aura) should call setPausedForReason so the mask
+    /// tracks which subsystem caused the pause. Idempotent.
     void setPaused(bool paused);
+
+    /// Pause / resume for a specific reason. Sets or clears the matching
+    /// bit in m_pauseMask; the timer is paused iff the mask is non-zero.
+    /// Multiple sources can therefore overlap: user-paused + Aura-away
+    /// stays paused until BOTH clear. Emits pausedChanged on any mask
+    /// transition (including same-overall-paused but different dominant
+    /// reason — so the UI chip text can update).
+    /// Idempotent per reason: set(true, Idle) twice = one signal.
+    void setPausedForReason(bool paused, PauseReason reason);
+
+    /// Force-resume the countdown regardless of which pause reasons are
+    /// active. Clears the entire pauseMask in one shot. This is the
+    /// "user explicit action overrides inference" escape hatch — Aura and
+    /// Idle are best-effort inferences about whether the user is available;
+    /// a click on the resume button or tray toggle is a fact, and it should
+    /// win. Without this, paused-by-Aura-only states cannot be cleared by
+    /// the user when the Aura back signal never arrives (Microsoft BLE
+    /// peripherals sleep and don't rebroadcast). Idempotent: no-op when
+    /// mask is already empty.
+    Q_INVOKABLE void forceResume();
 
 signals:
     void stateChanged();
@@ -167,6 +223,7 @@ signals:
     void breaksCompletedChanged();
     void todayCompletedRoundsChanged();
     void targetRoundsChanged();
+    void autoContinueCycleChanged();
     void pausedChanged();
 
     /// Working → BreakDue transition. Plugin listens + shows the toast.
@@ -194,14 +251,24 @@ private:
     int   m_breakMinutes       = kDefaultBreakMinutes;
     int   m_maxPostpones       = kDefaultMaxPostpones;
     int   m_targetRounds       = kDefaultTargetRounds;
+    bool  m_autoContinueCycle = true;
     int   m_remainingSec       = 0;
     int   m_postponesRemaining = kDefaultMaxPostpones;
     int   m_breaksCompleted    = 0;
     int   m_todayCompletedRounds = 0;
     QDate m_todayDate;  // invalid until first setTodayDate / rollback fires
+    // PauseReason bitmask — see enum above. m_paused is the cached boolean
+    // (m_pauseMask != 0) so paused() stays O(1) and the signal path only
+    // fires on the actual boolean edge.
+    PauseReasonMask m_pauseMask;
     bool  m_paused             = false;
 
     QTimer m_tickTimer;
 };
+
+// Q_DECLARE_OPERATORS_FOR_FLAGS must be at namespace scope (it generates
+// free-function binary operators that need 2 args, so they can't be class
+// members). Mirrors Qt's own pattern for QFlags.
+Q_DECLARE_OPERATORS_FOR_FLAGS(PomodoroTimer::PauseReasonMask)
 
 } // namespace Margin::Plugins::Rhythm

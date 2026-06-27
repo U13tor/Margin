@@ -4,7 +4,7 @@
 # Output: margin-aura-locker.dll sitting next to Margin.exe under
 # <build>/src/host/plugins/ so PluginManager::loadAll picks it up.
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Qml)
+find_package(Qt6 6.7 REQUIRED COMPONENTS Core Qml)
 
 add_library(margin_aura_locker SHARED
     entry.cpp

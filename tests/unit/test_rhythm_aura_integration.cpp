@@ -8,6 +8,12 @@
 // resuming instantly, and a second "away" before it fires cancels the resume.
 // These tests mirror that wiring with a short delay.
 //
+// 2026-06-26 fix-forward: subscriptions now route through
+// setPausedForReason(_, AuraAway) rather than the legacy setPaused(_) latch.
+// Same semantics from the EventBus perspective; the change matters when
+// another source (Idle / User) overlaps — covered in test_pomodoro_timer's
+// bitmask cases.
+//
 // The test sets up the subscription directly with the real EventBus impl,
 // then publishes margin.aura.away / margin.aura.back. EventBus dispatches
 // via Qt::QueuedConnection, so we need a spinning event loop (QSignalSpy::wait
@@ -36,6 +42,12 @@ private slots:
     void auraBackResumesAfterDelay();
     void auraReentryCancelsPendingResume();
     void auraPayloadIsIgnored();
+    // 2026-06-27 lifecycle fix — RhythmPlugin wires InputMonitor's !idle
+    // edge to clear a stuck AuraAway bit, and forceResume is the user-
+    // explicit override that clears the entire mask. Both kill the
+    // "paused · 离开中 stuck forever after BLE dropout" bug pattern.
+    void inputNotIdle_clearsStuckAuraAway();
+    void forceResume_fromAwayOnlyPause();
 
 private:
     std::unique_ptr<EventBus> m_bus;
@@ -56,7 +68,7 @@ void TestRhythmAuraIntegration::auraAwayPausesCountdown() {
     // EventBus can track it; doesn't matter for this test since we don't
     // call unsubscribeAll.
     m_bus->subscribe(QStringLiteral("margin.aura.away"),
-        [&t](const QJsonObject&) { t.setPaused(true); }, this);
+        [&t](const QJsonObject&) { t.setPausedForReason(true, PomodoroTimer::PauseReason::AuraAway); }, this);
 
     m_bus->publish(QStringLiteral("margin.aura.away"), QJsonObject{});
     // EventBus dispatches via QueuedConnection — spin the loop to drain.
@@ -77,16 +89,16 @@ void TestRhythmAuraIntegration::auraBackResumesAfterDelay() {
     PomodoroTimer t;
     t.setWorkMinutes(1);
     t.start();
-    t.setPaused(true);
+    t.setPausedForReason(true, PomodoroTimer::PauseReason::AuraAway);
 
     QTimer resumeTimer;
     resumeTimer.setSingleShot(true);
     resumeTimer.setInterval(50);  // stands in for resume_delay_sec
     QObject::connect(&resumeTimer, &QTimer::timeout, &t,
-                     [&t]() { t.setPaused(false); });
+                     [&t]() { t.setPausedForReason(false, PomodoroTimer::PauseReason::AuraAway); });
 
     m_bus->subscribe(QStringLiteral("margin.aura.away"),
-        [&](const QJsonObject&) { resumeTimer.stop(); t.setPaused(true); }, this);
+        [&](const QJsonObject&) { resumeTimer.stop(); t.setPausedForReason(true, PomodoroTimer::PauseReason::AuraAway); }, this);
     m_bus->subscribe(QStringLiteral("margin.aura.back"),
         [&](const QJsonObject&) { resumeTimer.start(); }, this);
 
@@ -107,16 +119,16 @@ void TestRhythmAuraIntegration::auraReentryCancelsPendingResume() {
     PomodoroTimer t;
     t.setWorkMinutes(1);
     t.start();
-    t.setPaused(true);
+    t.setPausedForReason(true, PomodoroTimer::PauseReason::AuraAway);
 
     QTimer resumeTimer;
     resumeTimer.setSingleShot(true);
     resumeTimer.setInterval(200);
     QObject::connect(&resumeTimer, &QTimer::timeout, &t,
-                     [&t]() { t.setPaused(false); });
+                     [&t]() { t.setPausedForReason(false, PomodoroTimer::PauseReason::AuraAway); });
 
     m_bus->subscribe(QStringLiteral("margin.aura.away"),
-        [&](const QJsonObject&) { resumeTimer.stop(); t.setPaused(true); }, this);
+        [&](const QJsonObject&) { resumeTimer.stop(); t.setPausedForReason(true, PomodoroTimer::PauseReason::AuraAway); }, this);
     m_bus->subscribe(QStringLiteral("margin.aura.back"),
         [&](const QJsonObject&) { resumeTimer.start(); }, this);
 
@@ -139,7 +151,7 @@ void TestRhythmAuraIntegration::auraPayloadIsIgnored() {
     t.start();
 
     m_bus->subscribe(QStringLiteral("margin.aura.away"),
-        [&t](const QJsonObject&) { t.setPaused(true); }, this);
+        [&t](const QJsonObject&) { t.setPausedForReason(true, PomodoroTimer::PauseReason::AuraAway); }, this);
 
     QJsonObject junk;
     junk["device"]    = "iPhone XYZ";
@@ -150,6 +162,67 @@ void TestRhythmAuraIntegration::auraPayloadIsIgnored() {
     QCoreApplication::processEvents(QEventLoop::AllEvents);
 
     QCOMPARE(t.paused(), true);
+}
+
+void TestRhythmAuraIntegration::inputNotIdle_clearsStuckAuraAway() {
+    // Bug H fallback (2026-06-27): Aura's BLE inference can stick on "away"
+    // when a Microsoft peripheral sleeps after the user walks back — no
+    // margin.aura.back ever fires. RhythmPlugin wires the InputMonitor
+    // !idle edge to also clear AuraAway, because physical input is ground
+    // truth. This test mirrors that wiring.
+    PomodoroTimer t;
+    t.setWorkMinutes(1);
+    t.start();
+
+    // Simulate Aura away fired, back NEVER fired.
+    t.setPausedForReason(true, PomodoroTimer::PauseReason::AuraAway);
+    QCOMPARE(t.paused(), true);
+    QCOMPARE(int(t.pauseMask()), int(PomodoroTimer::PauseReason::AuraAway));
+
+    // Mirror RhythmPlugin's InputMonitor connect — !idle also clears AuraAway.
+    auto onIdleChanged = [&t](bool idle) {
+        t.setPausedForReason(idle, PomodoroTimer::PauseReason::Idle);
+        if (!idle) {
+            t.setPausedForReason(false, PomodoroTimer::PauseReason::AuraAway);
+        }
+    };
+
+    // User moves the mouse — Idle clears AND stuck AuraAway clears.
+    onIdleChanged(false);
+
+    QCOMPARE(t.paused(),         false);
+    QCOMPARE(int(t.pauseMask()), 0);
+    // Countdown actually resumes — advance is no longer blocked.
+    t.advance(5);
+    QCOMPARE(t.remainingSeconds(), 55);
+}
+
+void TestRhythmAuraIntegration::forceResume_fromAwayOnlyPause() {
+    // Bug A fix (2026-06-27): legacy setPaused(false) only clears the User
+    // bit. When paused-by-Aura-only, User was never set so the call is a
+    // no-op — the "继续 button does nothing" complaint. forceResume()
+    // clears the entire mask regardless of source.
+    PomodoroTimer t;
+    t.setWorkMinutes(1);
+    t.start();
+
+    // Pure AuraAway pause — no User, no Idle.
+    t.setPausedForReason(true, PomodoroTimer::PauseReason::AuraAway);
+    QCOMPARE(t.paused(), true);
+    QCOMPARE(int(t.pauseMask()), int(PomodoroTimer::PauseReason::AuraAway));
+
+    // The legacy path — what setPaused(false) would do.
+    t.setPaused(false);
+    // Still paused — User bit wasn't set, so clearing it changes nothing.
+    QCOMPARE(t.paused(),         true);
+    QCOMPARE(int(t.pauseMask()), int(PomodoroTimer::PauseReason::AuraAway));
+
+    // The new path — explicit user override.
+    t.forceResume();
+    QCOMPARE(t.paused(),         false);
+    QCOMPARE(int(t.pauseMask()), 0);
+    t.advance(5);
+    QCOMPARE(t.remainingSeconds(), 55);
 }
 
 QTEST_MAIN(TestRhythmAuraIntegration)

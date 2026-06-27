@@ -8,7 +8,7 @@
 # docs/12-deferred-items.md §A22 (build host lacks the module). BreakOverlay.qml
 # uses an SVG + QML NumberAnimation fallback, so no extra Qt component is linked.
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Qml Quick)
+find_package(Qt6 6.7 REQUIRED COMPONENTS Core Gui Qml Quick)
 
 add_library(margin_rhythm SHARED
     entry.cpp

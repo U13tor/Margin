@@ -2,6 +2,8 @@
 
 #include "PomodoroTimer.h"
 
+#include <QCoreApplication>
+
 namespace Margin::Plugins::Rhythm {
 
 namespace {
@@ -72,6 +74,12 @@ void PomodoroTimer::setTargetRounds(int rounds) {
     emit targetRoundsChanged();
 }
 
+void PomodoroTimer::setAutoContinueCycle(bool enabled) {
+    if (m_autoContinueCycle == enabled) return;
+    m_autoContinueCycle = enabled;
+    emit autoContinueCycleChanged();
+}
+
 void PomodoroTimer::setTodayCompletedRounds(int count) {
     if (m_todayCompletedRounds == count) return;
     m_todayCompletedRounds = count;
@@ -103,6 +111,17 @@ void PomodoroTimer::start() {
     if (m_state == State::Working || m_state == State::BreakDue ||
         m_state == State::BreakActive) {
         return;
+    }
+    // start() is a strong user intent ("I want to begin work now"). Clear
+    // any leftover pause bits from a prior session so we don't enter Working
+    // with m_paused=true — that would freeze the countdown immediately and
+    // leave the user looking at a stuck timer. The bitmask invariant says
+    // paused = (mask != 0); entering Working with non-empty mask violates
+    // it. See docs/11-roadmap.md M3 review §F.
+    if (m_pauseMask != 0) {
+        m_pauseMask = PauseReason::None;
+        m_paused = false;
+        emit pausedChanged();
     }
     resetPostpones();
     enterWorking();
@@ -140,16 +159,74 @@ void PomodoroTimer::endBreakEarly() {
 }
 
 void PomodoroTimer::setPaused(bool paused) {
-    if (m_paused == paused) return;
-    m_paused = paused;
-    // Pause gates the production tick timer. While paused, no point
-    // burning CPU on 1Hz timeouts that onTick will short-circuit on.
+    // Legacy entry point — routes through the User bit so the mask tracks
+    // who actually caused the pause. Existing QML / tray / tests keep working
+    // without API churn.
+    setPausedForReason(paused, PauseReason::User);
+}
+
+void PomodoroTimer::setPausedForReason(bool paused, PauseReason reason) {
+    if (reason == PauseReason::None) return;
+
+    const PauseReasonMask before = m_pauseMask;
     if (paused) {
-        m_tickTimer.stop();
-    } else if (m_state == State::Working || m_state == State::BreakActive) {
+        m_pauseMask |= reason;
+    } else {
+        m_pauseMask &= ~PauseReasonMask(reason);
+    }
+    if (m_pauseMask == before) return;
+
+    // m_paused is the cached boolean for paused() / external observers.
+    // Re-derive from the mask; emit + tickTimer side-effects fire on the
+    // boolean edge only, but pausedChanged also flushes the pauseReasonsText
+    // binding (which depends on the dominant reason, not just the bool).
+    const bool nowPaused = (m_pauseMask != 0);
+    const bool edgeChanged = (nowPaused != m_paused);
+    m_paused = nowPaused;
+
+    if (edgeChanged) {
+        if (nowPaused) {
+            m_tickTimer.stop();
+        } else if (m_state == State::Working || m_state == State::BreakActive) {
+            m_tickTimer.start();
+        }
+    }
+    emit pausedChanged();
+}
+
+void PomodoroTimer::forceResume() {
+    // Strong user intent: clear the entire pause mask. Aura/Idle are
+    // inferences; a click on "继续" or tray toggle is a fact, and the fact
+    // wins. This is the only path that clears bits the owning subsystem
+    // didn't explicitly clear itself — without it, paused-by-Aura-only
+    // states get stuck when the BLE back signal never arrives (Microsoft
+    // peripherals sleep + don't rebroadcast after reconnection).
+    if (m_pauseMask == 0) return;
+    m_pauseMask = PauseReason::None;
+    m_paused = false;
+    if (m_state == State::Working || m_state == State::BreakActive) {
         m_tickTimer.start();
     }
     emit pausedChanged();
+}
+
+QString PomodoroTimer::pauseReasonsText() const {
+    // Highest-priority active reason — matches what the user most likely
+    // wants to see in the chip. Order: AuraAway > Idle > User so an active
+    // away-session chip says "离开中" even if the user also hit pause.
+    // Returns empty string when not paused so the QML chip can `visible:
+    // rhythm.paused && text !== ""`.
+    if (!m_paused) return QString();
+    if (m_pauseMask & PauseReason::AuraAway) {
+        return QCoreApplication::translate("PomodoroTimer", "离开中");
+    }
+    if (m_pauseMask & PauseReason::Idle) {
+        return QCoreApplication::translate("PomodoroTimer", "闲置");
+    }
+    if (m_pauseMask & PauseReason::User) {
+        return QCoreApplication::translate("PomodoroTimer", "用户暂停");
+    }
+    return QString();
 }
 
 void PomodoroTimer::advance(int seconds) {
@@ -173,7 +250,12 @@ void PomodoroTimer::onTick() {
         if (m_state == State::Working) {
             enterBreakDue();
         } else {
-            // BreakActive natural completion — count it and return to Idle.
+            // BreakActive natural completion — count it, then either auto-
+            // continue into the next work round (default) or fall to Idle
+            // for manual-pacing users (autostart-disabled hosts). Either
+            // way breakEnded fires BEFORE the state transition so the
+            // RhythmPlugin hideBreakToast + overlay done-card paths see
+            // the same event regardless of where we go next.
             ++m_breaksCompleted;
             emit breaksCompletedChanged();
             // Roll the today-scoped counter forward if we crossed midnight
@@ -184,7 +266,12 @@ void PomodoroTimer::onTick() {
             ++m_todayCompletedRounds;
             emit todayCompletedRoundsChanged();
             emit breakEnded();
-            enterIdle();
+            if (m_autoContinueCycle) {
+                resetPostpones();
+                enterWorking();
+            } else {
+                enterIdle();
+            }
         }
     }
 }

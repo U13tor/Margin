@@ -78,7 +78,7 @@ Section "Install"
   SetOverwrite ifnewer
 
   ; Recursively copy the staged install tree (Margin.exe + Qt runtime +
-  ; plugins/ + licenses/ + OpenSSL DLLs) into $INSTDIR.
+  ; plugins/ + licenses/) into $INSTDIR.
   File /r "${STAGE_DIR}\*.*"
 
   ; Remember install dir for upgrades / uninstaller lookup.

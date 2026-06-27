@@ -10,7 +10,7 @@
 //   - Cooldown suppresses re-lock while the cooldown window is open
 //   - After cooldown elapses, state returns to Paired
 //   - pause() drops state to Inactive and ignores further samples
-//   - Heartbeat fires when no sample arrives for 2× awayDelay (covers the
+//   - Heartbeat fires when no sample arrives for 4× awayDelay (covers the
 //     real-world case where the paired device stops broadcasting entirely
 //     — e.g. smartwatch taken over by phone via BT Classic — so the
 //     threshold path never sees a weak signal, only silence)
@@ -170,8 +170,10 @@ void TestProximityDetector::heartbeatFires_whenNoSampleArrives() {
 
     d.start();
 
-    // Silence. No samples. Wait past the heartbeat (2× kAwaySec = 4 s).
-    QTest::qWait((kAwaySec * 2 + 1) * 1000);
+    // Silence. No samples. Wait past the heartbeat (4× kAwaySec = 8 s
+    // after the 2026-06-26 fix-forward that doubled the multiplier from
+    // 2× to 4× to suppress brief BLE dropouts).
+    QTest::qWait((kAwaySec * 4 + 1) * 1000);
 
     QCOMPARE(d.state(), ProximityDetector::State::Away);
     QCOMPARE(awaySpy.count(), 1);

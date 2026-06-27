@@ -75,6 +75,31 @@ Rectangle {
                 anchors.fill: parent
                 spacing: Theme.space3
 
+                // Paused chip — visible only when something is holding the
+                // countdown frozen. Text comes from `rhythm.pauseReasonsText`,
+                // which returns the highest-priority active reason
+                // (AuraAway > Idle > User) so a brief BLE dropout is visibly
+                // distinguishable from "user hit pause". Without this chip
+                // the user can't tell whether the timer is broken, idle,
+                // or paused — the original "很多时候不自动开始" complaint.
+                Rectangle {
+                    visible: rhythm.paused
+                    Layout.fillWidth: true
+                    radius: Theme.radiusMd
+                    color: Theme.bgElevated
+                    implicitHeight: pauseLabel.implicitHeight + 2 * Theme.space2
+
+                    Text {
+                        id: pauseLabel
+                        anchors.centerIn: parent
+                        text: rhythm.pauseReasonsText === ""
+                            ? qsTr("已暂停")
+                            : qsTr("已暂停 · %1").arg(rhythm.pauseReasonsText)
+                        color: Theme.fgSecondary
+                        font.pixelSize: Theme.textXs
+                    }
+                }
+
                 // Pomodoro header: "#N/M" with N = todayCompletedRounds + 1.
                 // Allowing N > M when the user exceeded the daily goal is
                 // an honest signal (setTargetRounds comment in PomodoroTimer.cpp).
@@ -132,11 +157,24 @@ Rectangle {
 
                     MButton {
                         objectName: "pauseButton"
-                        text: rhythm.paused ? qsTr("继续") : qsTr("暂停")
-                        iconSource: rhythm.paused ? "qrc:/icons/icon-play.svg"
-                                                  : "qrc:/icons/icon-pause.svg"
+                        // 三态 (2026-06-27): Idle shows "开始" (seeds a fresh
+                        // work session), paused shows "继续" (forceResume
+                        // clears the entire pauseMask — the only way out of
+                        // a paused-by-Aura-only state since the legacy
+                        // setPaused(false) path just toggles the User bit),
+                        // Working/Break* shows "暂停".
+                        text: rhythm.state === "idle" ? qsTr("开始")
+                            : rhythm.paused ? qsTr("继续")
+                            : qsTr("暂停")
+                        iconSource: rhythm.state === "idle" ? "qrc:/icons/icon-play.svg"
+                                    : rhythm.paused ? "qrc:/icons/icon-play.svg"
+                                                    : "qrc:/icons/icon-pause.svg"
                         variant: MButton.Variant.Primary
-                        onClicked: rhythm.setPaused(!rhythm.paused)
+                        onClicked: {
+                            if (rhythm.state === "idle") rhythm.start()
+                            else if (rhythm.paused) rhythm.forceResume()
+                            else rhythm.setPaused(true)
+                        }
                     }
 
                     MButton {

@@ -4,6 +4,12 @@
 # which on Qt 6.5.3 generated an orphan Margin_lrelease utility target and
 # never actually linked any .qm into the Margin executable (see docs/15-A8).
 #
+# Qt version note: the manual qrc + custom-command pipeline was a 6.5-only
+# workaround. Qt 6.6+ auto-embeds .qm via qt6_add_translations, so this
+# module could in principle be retired. Kept as-is on the 6.7 baseline
+# because the rewrite has wide blast radius (host + 4 plugins) for low
+# payoff; tracked as v1.1+ follow-up (D5 子项 2).
+#
 # This module follows the proven fetch_fonts.cmake pattern: at configure
 # time we (1) declare per-.ts lrelease custom commands, (2) file(WRITE) a
 # generated i18n.qrc listing the .qm outputs, and (3) expose its path via

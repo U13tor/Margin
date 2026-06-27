@@ -7,7 +7,7 @@
 #
 # Spec: docs/02-source-layout.md §1.1 + docs/08-platform-backends.md §4.
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui)
+find_package(Qt6 6.7 REQUIRED COMPONENTS Core Gui)
 
 add_library(margin_platform STATIC
     PlatformBackend.cpp

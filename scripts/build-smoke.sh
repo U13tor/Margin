@@ -51,7 +51,7 @@ if [[ "$(uname -s)" == MINGW* ]] && ! command -v cl.exe >/dev/null 2>&1; then
         QT_DIR=$(powershell.exe -NoProfile -Command \
             '[Environment]::GetEnvironmentVariable("Qt6_DIR","User")' 2>/dev/null | tr -d '\r')
     fi
-    QT_DIR="${QT_DIR:?Qt6_DIR env var must be set to your Qt 6.5 install path (e.g. D:/Qt/6.5.3/msvc2019_64)}"
+    QT_DIR="${QT_DIR:?Qt6_DIR env var must be set to your Qt 6.7 install path (e.g. D:/Qt/6.7.3/msvc2019_64)}"
 
     # VCPKG_ROOT: same precedence.
     VCPKG_ROOT_LOCAL="${VCPKG_ROOT:-}"

@@ -8,7 +8,7 @@
 # stub QML tab. M2-C3 wires DB; M2-C5 adds CategoryMatcher;
 # M2-C6/C7 fill out the UI surface.
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Qml Sql)
+find_package(Qt6 6.7 REQUIRED COMPONENTS Core Qml Sql)
 
 add_library(margin_screen_time SHARED
     entry.cpp
