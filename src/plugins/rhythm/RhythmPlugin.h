@@ -81,6 +81,7 @@ public:
     // + close button. Exposed publicly so QML can dismiss the window
     // without touching the C++-controlled visibility flag directly.
     Q_INVOKABLE void dismissBreakOverlay();
+    Q_INVOKABLE void restoreBreakOverlay();
 
 private:
     void loadSettings();

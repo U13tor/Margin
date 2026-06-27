@@ -28,6 +28,7 @@ constexpr const char* kId          = "rhythm";
 constexpr const char* kVersion     = "0.1.0";
 constexpr const char* kTag         = "rhythm";
 constexpr const char* kToggleId    = "toggle_pause";
+constexpr const char* kShowOverlayId = "show_break_overlay";
 constexpr const char* kQmlName     = "rhythm";  // context property name
 constexpr const char* kToastQmlUrl   = "qrc:/rhythm/qml/RhythmToast.qml";
 // M4-C13a: standalone break-overlay window. Root is a Window, not Item —
@@ -350,6 +351,16 @@ QList<TrayMenuContributor::TrayItem> RhythmPlugin::contributeTrayItems() {
     toggle.checkable = false;
     items.append(toggle);
 
+    // If break is active and the overlay window is hidden, show a menu item to restore it
+    if (m_timer.state() == PomodoroTimer::State::BreakActive && !m_overlayVisible) {
+        TrayMenuContributor::TrayItem showOverlay;
+        showOverlay.id        = kShowOverlayId;
+        showOverlay.label     = QCoreApplication::translate(
+            "RhythmPlugin", "Show Exercise Window").toStdString();
+        showOverlay.checkable = false;
+        items.append(showOverlay);
+    }
+
     // Preview line: only show next-break time when actively working. Other
     // states (Idle / BreakDue / BreakActive) would be misleading or redundant.
     if (m_timer.state() == PomodoroTimer::State::Working) {
@@ -368,6 +379,10 @@ QList<TrayMenuContributor::TrayItem> RhythmPlugin::contributeTrayItems() {
 }
 
 void RhythmPlugin::onTrayItemClicked(const std::string& id) {
+    if (id == kShowOverlayId) {
+        showBreakOverlay();
+        return;
+    }
     if (id != kToggleId) return;
     // Bug A fix (2026-06-27): legacy setPaused(!paused) only flipped the
     // User bit — useless when paused-by-Aura-only because User was never
@@ -490,12 +505,18 @@ void RhythmPlugin::showBreakOverlay() {
     m_overlayWindow->show();
     m_overlayWindow->requestActivate();
     m_overlayVisible = true;
+    if (m_ctx.host) {
+        m_ctx.host->tray().refreshPluginMenu(QString::fromLatin1(kId));
+    }
 }
 
 void RhythmPlugin::hideBreakOverlay() {
     if (!m_overlayWindow) return;
     m_overlayWindow->hide();
     m_overlayVisible = false;
+    if (m_ctx.host) {
+        m_ctx.host->tray().refreshPluginMenu(QString::fromLatin1(kId));
+    }
 }
 
 void RhythmPlugin::dismissBreakOverlay() {
@@ -504,6 +525,10 @@ void RhythmPlugin::dismissBreakOverlay() {
     // m_overlayVisible flag stays consistent for the overlayVisible() test
     // seam and any future C++ observers.
     hideBreakOverlay();
+}
+
+void RhythmPlugin::restoreBreakOverlay() {
+    showBreakOverlay();
 }
 
 void RhythmPlugin::positionOverlayCenter() {
@@ -571,7 +596,12 @@ void RhythmPlugin::createToastWindow() {
         hideBreakToast();
         publishEvent(QStringLiteral("margin.rhythm.break_started"));
     });
-    connect(&m_timer, &PomodoroTimer::breakEnded, this, [this]() { hideBreakToast(); });
+    connect(&m_timer, &PomodoroTimer::breakEnded, this, [this]() {
+        hideBreakToast();
+        if (!m_overlayVisible) {
+            hideBreakOverlay();
+        }
+    });
 
     // M4-C16: refresh tray menu on state transitions so the Pomodoro preview
     // (shown only in Working state) appears/disappears as the user moves

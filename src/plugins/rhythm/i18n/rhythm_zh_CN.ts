@@ -28,6 +28,10 @@
         <source>Pomodoro: %1 break</source>
         <translation>番茄钟: %1 休息</translation>
     </message>
+    <message>
+        <source>Show Exercise Window</source>
+        <translation>显示做操界面</translation>
+    </message>
 </context>
 <context>
     <name>BreakOverlay</name>
@@ -271,6 +275,10 @@
         <location filename="../qml/RhythmTab.qml" line="204"/>
         <source>推迟剩余</source>
         <translation>推迟剩余</translation>
+    </message>
+    <message>
+        <source>返回做操</source>
+        <translation>返回做操</translation>
     </message>
 </context>
 <context>

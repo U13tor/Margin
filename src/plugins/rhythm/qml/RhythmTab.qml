@@ -169,11 +169,24 @@ Rectangle {
                         iconSource: rhythm.state === "idle" ? "qrc:/icons/icon-play.svg"
                                     : rhythm.paused ? "qrc:/icons/icon-play.svg"
                                                     : "qrc:/icons/icon-pause.svg"
-                        variant: MButton.Variant.Primary
+                        variant: rhythm.state === "break_active" ? MButton.Variant.Secondary : MButton.Variant.Primary
                         onClicked: {
                             if (rhythm.state === "idle") rhythm.start()
                             else if (rhythm.paused) rhythm.forceResume()
                             else rhythm.setPaused(true)
+                        }
+                    }
+
+                    MButton {
+                        objectName: "restoreOverlayButton"
+                        text: qsTr("返回做操")
+                        iconSource: "qrc:/icons/icon-maximize.svg"
+                        variant: MButton.Variant.Primary
+                        visible: rhythm.state === "break_active"
+                        onClicked: {
+                            if (typeof rhythmHost !== "undefined" && rhythmHost) {
+                                rhythmHost.restoreBreakOverlay()
+                            }
                         }
                     }
 

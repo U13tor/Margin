@@ -213,8 +213,10 @@ Rectangle {
             objectName: "overviewCardRecentEvents"
             Layout.fillWidth: true
             visible: typeof activityFeed !== "undefined"
+            implicitHeight: recentEventsLayout.implicitHeight + 2 * padding
 
             ColumnLayout {
+                id: recentEventsLayout
                 anchors.fill: parent
                 spacing: Theme.space2
 

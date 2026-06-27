@@ -230,6 +230,18 @@ Window {
         }
     }
 
+    MButton {
+        id: minimizeButton
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.margins: Theme.space3
+        variant: MButton.Variant.Ghost
+        iconSource: "qrc:/icons/icon-minimize.svg"
+        visible: root.mode === "active"
+        onClicked: rhythmHost.dismissBreakOverlay()
+        z: 10
+    }
+
     // Escape key = dismiss. In active mode: endBreakEarly (skip path,
     // C++ hides immediately). In done mode: dismissBreakOverlay (close
     // path).
