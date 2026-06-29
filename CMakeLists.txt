@@ -36,11 +36,19 @@ endif()
 # Numeric X.Y.Z parsed from MARGIN_RELEASE_VERSION, with any pre-release
 # suffix stripped. Required by Windows VIProductVersion / FILEVERSION which
 # mandate X.Y.Z.W numeric form (NSIS rejects "0.1.1-rc1.0" at makensis time).
-string(REGEX REPLACE "^([0-9]+)\\.([0-9]+)\\.([0-9]+).*" "\\1;\\2;\\3"
-       _margin_release_parts "${MARGIN_RELEASE_VERSION}")
-list(GET _margin_release_parts 0 MARGIN_VERSION_MAJOR)
-list(GET _margin_release_parts 1 MARGIN_VERSION_MINOR)
-list(GET _margin_release_parts 2 MARGIN_VERSION_PATCH)
+# Falls back to 0.0.0 when MARGIN_RELEASE_VERSION isn't SemVer-shaped (e.g.
+# workflow_dispatch dry-run with inputs.version="dry-run") so the numeric
+# fields stay valid; the release-string fields (APP_VERSION, ProductVersion)
+# still carry the original value verbatim.
+if(MARGIN_RELEASE_VERSION MATCHES "^([0-9]+)\\.([0-9]+)\\.([0-9]+)")
+    set(MARGIN_VERSION_MAJOR "${CMAKE_MATCH_1}")
+    set(MARGIN_VERSION_MINOR "${CMAKE_MATCH_2}")
+    set(MARGIN_VERSION_PATCH "${CMAKE_MATCH_3}")
+else()
+    set(MARGIN_VERSION_MAJOR 0)
+    set(MARGIN_VERSION_MINOR 0)
+    set(MARGIN_VERSION_PATCH 0)
+endif()
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
