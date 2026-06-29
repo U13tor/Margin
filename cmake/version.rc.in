@@ -1,7 +1,8 @@
 // cmake/version.rc.in
 //
 // Windows VERSIONINFO resource for Margin.exe. configure_file()'d into
-// ${CMAKE_BINARY_DIR}/version.rc with @PROJECT_VERSION_*@ substituted, then
+// ${CMAKE_BINARY_DIR}/version.rc with @MARGIN_RELEASE_VERSION@ /
+// @MARGIN_VERSION_MAJOR/MINOR/PATCH@ / @MARGIN_BUILD_STAMP@ substituted, then
 // compiled as a source on the Margin target (see src/host/CMakeLists.txt).
 //
 // Why a separate .rc from src/resources/tray.rc:
@@ -23,8 +24,8 @@
 //   - VFT_APP = 0x1L (FILETYPE for executable)
 
 1 VERSIONINFO
- FILEVERSION @PROJECT_VERSION_MAJOR@,@PROJECT_VERSION_MINOR@,@PROJECT_VERSION_PATCH@,0
- PRODUCTVERSION @PROJECT_VERSION_MAJOR@,@PROJECT_VERSION_MINOR@,@PROJECT_VERSION_PATCH@,0
+ FILEVERSION @MARGIN_VERSION_MAJOR@,@MARGIN_VERSION_MINOR@,@MARGIN_VERSION_PATCH@,0
+ PRODUCTVERSION @MARGIN_VERSION_MAJOR@,@MARGIN_VERSION_MINOR@,@MARGIN_VERSION_PATCH@,0
  FILEFLAGSMASK 0x3fL
  FILEFLAGS 0x0L
  FILEOS 0x40004L
@@ -37,12 +38,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "Margin"
             VALUE "FileDescription", "Margin - desktop rhythm conductor"
-            VALUE "FileVersion", "@PROJECT_VERSION@+build.@MARGIN_BUILD_STAMP@"
+            VALUE "FileVersion", "@MARGIN_RELEASE_VERSION@+build.@MARGIN_BUILD_STAMP@"
             VALUE "InternalName", "Margin"
             VALUE "LegalCopyright", "Margin contributors - LGPL-3.0-or-later"
             VALUE "OriginalFilename", "Margin.exe"
             VALUE "ProductName", "Margin"
-            VALUE "ProductVersion", "@PROJECT_VERSION@"
+            VALUE "ProductVersion", "@MARGIN_RELEASE_VERSION@"
         END
     END
     BLOCK "VarFileInfo"

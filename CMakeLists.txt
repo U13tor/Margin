@@ -17,11 +17,30 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # A no-op rebuild with zero source edits keeps the old stamp, which is
 # correct (identical input → identical output).
 #
-# Note: the stamp stays in FileVersion only — the NSIS installer OutFile name
-# uses bare PROJECT_VERSION (e.g. Margin-Setup-0.1.0-x64.exe) so release
-# artifacts have SemVer-clean filenames matching Portable ZIP naming in
-# release.yml (which strips leading 'v' from git tag).
-string(TIMESTAMP MARGIN_BUILD_STAMP "%Y%m%d.%H%M")
+# Format: YYYYMMDDHHMMSS (14 digits, second-precision, no separators) so the
+# FileVersion reads cleanly as `<release>+build.20260629100526` and sorts
+# lexically. Used only in FileVersion strings (version.rc.in + install.nsi.in);
+# OutFile / ProductVersion use bare release version without stamp.
+string(TIMESTAMP MARGIN_BUILD_STAMP "%Y%m%d%H%M%S")
+
+# Release version override: CI passes -DMARGIN_RELEASE_VERSION=<git-tag>
+# (e.g. 0.1.1-rc1) so NSIS OutFile, install.nsi APP_VERSION, and Margin.exe
+# VERSIONINFO all reflect the actually-published tag. Defaults to
+# PROJECT_VERSION for local dev builds (keeping 0.1.0 baseline).
+# project(VERSION ...) rejects SemVer pre-release suffixes like "-rc1", so
+# we keep project() numeric and carry the full release string in a separate
+# variable that flows into all release-artifact version surfaces.
+if(NOT DEFINED MARGIN_RELEASE_VERSION)
+    set(MARGIN_RELEASE_VERSION "${PROJECT_VERSION}")
+endif()
+# Numeric X.Y.Z parsed from MARGIN_RELEASE_VERSION, with any pre-release
+# suffix stripped. Required by Windows VIProductVersion / FILEVERSION which
+# mandate X.Y.Z.W numeric form (NSIS rejects "0.1.1-rc1.0" at makensis time).
+string(REGEX REPLACE "^([0-9]+)\\.([0-9]+)\\.([0-9]+).*" "\\1;\\2;\\3"
+       _margin_release_parts "${MARGIN_RELEASE_VERSION}")
+list(GET _margin_release_parts 0 MARGIN_VERSION_MAJOR)
+list(GET _margin_release_parts 1 MARGIN_VERSION_MINOR)
+list(GET _margin_release_parts 2 MARGIN_VERSION_PATCH)
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
@@ -196,7 +215,7 @@ if(WIN32)
     # install.nsi so makensis's File /r finds Margin.exe + Qt runtime +
     # plugins/ + licenses/.
     set(MARGIN_NSIS_STAGE_DIR "${CMAKE_BINARY_DIR}/stage")
-    set(MARGIN_NSIS_OUT_FILE "${CMAKE_BINARY_DIR}/Margin-Setup-${PROJECT_VERSION}-x64.exe")
+    set(MARGIN_NSIS_OUT_FILE "${CMAKE_BINARY_DIR}/Margin-Setup-${MARGIN_RELEASE_VERSION}-x64.exe")
     file(TO_NATIVE_PATH "${MARGIN_NSIS_STAGE_DIR}" MARGIN_NSIS_STAGE_DIR_NATIVE)
     file(TO_NATIVE_PATH "${_nsis_license}" MARGIN_NSIS_LICENSE_NATIVE)
     file(TO_NATIVE_PATH "${MARGIN_NSIS_OUT_FILE}" MARGIN_NSIS_OUT_FILE_NATIVE)
@@ -241,4 +260,4 @@ if(WIN32)
         SOURCES ${CMAKE_SOURCE_DIR}/packaging/install.nsi.in)
 endif()
 
-message(STATUS "Margin ${PROJECT_VERSION} configured (M0-C10a).")
+message(STATUS "Margin ${MARGIN_RELEASE_VERSION} configured (M0-C10a).")

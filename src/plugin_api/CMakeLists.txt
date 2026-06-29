@@ -26,12 +26,14 @@ target_include_directories(margin_plugin_api PUBLIC
 target_link_libraries(margin_plugin_api PUBLIC Qt6::Core)
 
 # 注入 host/plugin 共享的版本常量。
-# - MARGIN_VERSION: 当前 Host 版本(来自顶层 project()),用于 manifest 的
-#   min_host_version 校验。
+# - MARGIN_VERSION: 当前 Host 版本(来自顶层 MARGIN_RELEASE_VERSION,CI 通过
+#   git tag 注入,本地默认 PROJECT_VERSION),用于 manifest 的 min_host_version
+#   校验。Carries pre-release suffixes (e.g. 0.1.1-rc1) so plugins can match
+#   the published Release they were built against.
 # - MARGIN_ABI_VERSION: PluginInterface ABI 版本,与 src/plugin_api/include/
 #   Margin/AbiVersion.h 中的字面量保持一致;manifest 的 abi_version 字段必须
 #   严格相等。详见 docs/04-plugin-spec.md §2 "版本协商"。
 target_compile_definitions(margin_plugin_api PUBLIC
-    MARGIN_VERSION="${CMAKE_PROJECT_VERSION}"
+    MARGIN_VERSION="${MARGIN_RELEASE_VERSION}"
     MARGIN_ABI_VERSION="0.2.0"
 )

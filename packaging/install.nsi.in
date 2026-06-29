@@ -2,7 +2,8 @@
 ;
 ; NSIS 3.x installer script for Margin. configure_file()'d into
 ; ${CMAKE_BINARY_DIR}/install.nsi by the top-level CMakeLists.txt, with
-; @PROJECT_VERSION@ / @MARGIN_NSIS_STAGE_DIR_NATIVE@ / etc. substituted.
+; @MARGIN_RELEASE_VERSION@ / @MARGIN_VERSION_MAJOR/MINOR/PATCH@ /
+; @MARGIN_NSIS_STAGE_DIR_NATIVE@ / etc. substituted.
 ;
 ; Why a hand-written .nsi instead of CPack NSIS generator:
 ;   CPack's stock NSIS.template.in hardcodes `RequestExecutionLevel admin`
@@ -25,8 +26,8 @@
 ;--- Constants (injected by configure_file) -------------------------------
 !define APP_NAME "Margin"
 !define APP_FULL_NAME "Margin — 息间"
-!define APP_VERSION "@PROJECT_VERSION@"
-!define APP_FILE_VERSION "@PROJECT_VERSION@+build.@MARGIN_BUILD_STAMP@"
+!define APP_VERSION "@MARGIN_RELEASE_VERSION@"
+!define APP_FILE_VERSION "@MARGIN_RELEASE_VERSION@+build.@MARGIN_BUILD_STAMP@"
 !define APP_PUBLISHER "Margin contributors"
 !define APP_URL "https://github.com/U13tor/Margin"
 !define APP_EXE "Margin.exe"
@@ -64,7 +65,7 @@ InstallDirRegKey HKCU "Software\${APP_NAME}" "InstallDir"
 !insertmacro MUI_LANGUAGE "English"
 
 ;--- Version info embedded in the installer .exe itself -------------------
-VIProductVersion @PROJECT_VERSION_MAJOR@.@PROJECT_VERSION_MINOR@.@PROJECT_VERSION_PATCH@.0
+VIProductVersion @MARGIN_VERSION_MAJOR@.@MARGIN_VERSION_MINOR@.@MARGIN_VERSION_PATCH@.0
 VIAddVersionKey /LANG=2052 "ProductName" "${APP_FULL_NAME}"
 VIAddVersionKey /LANG=2052 "FileVersion" "${APP_FILE_VERSION}"
 VIAddVersionKey /LANG=2052 "ProductVersion" "${APP_VERSION}"
