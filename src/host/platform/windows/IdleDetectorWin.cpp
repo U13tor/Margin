@@ -2,6 +2,7 @@
 
 #include "IdleDetectorWin.h"
 
+#include <QCoreApplication>
 #include <QDateTime>
 
 namespace Margin {
@@ -30,6 +31,7 @@ bool IdleDetectorWin::startMonitoring(int idleThresholdMs) {
     m_thresholdMs = idleThresholdMs;
     m_lastInputMs.store(QDateTime::currentMSecsSinceEpoch());
     m_isIdle = false;
+    m_isSuspended = false;
 
     // HMODULE must be non-NULL when the callback is in a DLL — but for
     // an EXE-hosted callback, GetModuleHandle(nullptr) returns the host
@@ -48,6 +50,19 @@ bool IdleDetectorWin::startMonitoring(int idleThresholdMs) {
         return false;
     }
 
+    // Native event filter is process-global; install once and keep for
+    // the lifetime of this singleton (PlatformBackendWin owns the only
+    // instance, which itself lives as long as HostCore). Installed here
+    // rather than in the ctor so QCoreApplication is guaranteed to exist.
+    // Cast is unambiguous via the QAbstractNativeEventFilter base — both
+    // base classes of IdleDetectorWin are non-QObject siblings under the
+    // QObject grandparent (InputMonitorService derives QObject), so the
+    // static_cast to the filter base is well-formed.
+    if (auto* app = QCoreApplication::instance()) {
+        app->installNativeEventFilter(
+            static_cast<QAbstractNativeEventFilter*>(this));
+    }
+
     restartIdleTimer();
     return true;
 }
@@ -61,9 +76,51 @@ void IdleDetectorWin::stopMonitoring() {
         UnhookWindowsHookEx(m_mouseHook);
         m_mouseHook = nullptr;
     }
+    if (auto* app = QCoreApplication::instance()) {
+        app->removeNativeEventFilter(
+            static_cast<QAbstractNativeEventFilter*>(this));
+    }
     m_idleTimer.stop();
     m_isIdle = false;
+    m_isSuspended = false;
     g_activeInstance.store(nullptr);
+}
+
+bool IdleDetectorWin::nativeEventFilter(const QByteArray& eventType, void* message,
+                                        qintptr* /*result*/) {
+    // Qt dispatches Windows messages as eventType "windows_generic_MSG"
+    // with message pointing to a native MSG struct. Anything else (e.g.
+    // "windows_dispatcher") is passed through untouched.
+    if (eventType != "windows_generic_MSG" || message == nullptr) {
+        return false;
+    }
+    const MSG* msg = static_cast<const MSG*>(message);
+    if (msg->message != WM_POWERBROADCAST) {
+        return false;
+    }
+    // PBT_APMSUSPEND: OS is entering S3/S4. PBT_APMRESUMEAUTOMATIC:
+    // OS resumed (PBT_APMRESUMESUSPEND fires only after a user-triggered
+    // resume event like keyboard — we want the automatic edge so a
+    // network-triggered wake from sleep also clears the flag). Both can
+    // broadcast multiple times per physical event — m_isSuspended
+    // dedupes the edge so plugins see one transition each way.
+    switch (msg->wParam) {
+    case PBT_APMSUSPEND:
+        if (!m_isSuspended) {
+            m_isSuspended = true;
+            emit systemSuspendStateChanged(true);
+        }
+        break;
+    case PBT_APMRESUMEAUTOMATIC:
+        if (m_isSuspended) {
+            m_isSuspended = false;
+            emit systemSuspendStateChanged(false);
+        }
+        break;
+    default:
+        break;
+    }
+    return false;
 }
 
 bool IdleDetectorWin::isActive() const {

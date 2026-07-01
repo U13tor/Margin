@@ -7,7 +7,7 @@
 // Covers:
 //   - happy-path state transitions: Idle → Working → BreakDue → BreakActive → Idle
 //   - clamp helpers (loadSettings path SSOT)
-//   - postponeBreak counter + cap
+//   - postponeBreak counter + cap + 5-minute countdown (Bug N)
 //   - skipBreak doesn't count as completed
 //   - advance(seconds) drives the tick accurately
 
@@ -33,6 +33,7 @@ private slots:
     void startBreakTransitionsToBreakActive();
     void breakActiveCompletesToIdle();
     void postponeBreakDecrementsCounter();
+    void postponeBreakSeedsFiveMinuteCountdown();
     void postponeBreakRefusesAtZero();
     void skipBreakDoesNotCountAsCompleted();
     void stopFromAnyStateGoesIdle();
@@ -202,6 +203,31 @@ void TestPomodoroTimer::postponeBreakDecrementsCounter() {
     QCOMPARE(t.state(), PomodoroTimer::State::Working);
 }
 
+void TestPomodoroTimer::postponeBreakSeedsFiveMinuteCountdown() {
+    // Bug N: 按钮文案承诺「推迟 5 分钟」,旧实现却走 enterWorking() 把 remaining
+    // 重置成完整工作番茄(默认 45 分钟),用户体验是「等了 45 分钟才再次弹窗」。
+    // 修复:postponeBreak 后 remaining = kPostponeMinutes*60,5 分钟自然回 BreakDue。
+    PomodoroTimer t;
+    t.setWorkMinutes(45);   // 故意远大于 5,凸显"重置成 workMinutes"的旧行为错误
+    t.start();
+    t.advance(45 * 60);     // → BreakDue
+
+    QSignalSpy stateSpy(&t, &PomodoroTimer::stateChanged);
+    stateSpy.clear();
+
+    t.postponeBreak();
+
+    QCOMPARE(t.state(),           PomodoroTimer::State::Working);
+    QCOMPARE(t.remainingSeconds(), PomodoroTimer::kPostponeMinutes * 60);
+    QCOMPARE(stateSpy.count(),    1);  // BreakDue → Working 单次转换
+
+    // 5 分钟后自然回 BreakDue,重新 emit breakDue() 让 RhythmPlugin 弹 toast。
+    QSignalSpy breakDueSpy(&t, &PomodoroTimer::breakDue);
+    t.advance(PomodoroTimer::kPostponeMinutes * 60);
+    QCOMPARE(t.state(),           PomodoroTimer::State::BreakDue);
+    QCOMPARE(breakDueSpy.count(), 1);
+}
+
 void TestPomodoroTimer::postponeBreakRefusesAtZero() {
     PomodoroTimer t;
     t.setMaxPostpones(1);
@@ -209,9 +235,9 @@ void TestPomodoroTimer::postponeBreakRefusesAtZero() {
     t.start();
     t.advance(60);  // → BreakDue
 
-    t.postponeBreak();  // → Working, postpones 0
+    t.postponeBreak();  // → Working(5min postpone), postpones 0
     QCOMPARE(t.postponesRemaining(), 0);
-    t.advance(60);     // → BreakDue again
+    t.advance(PomodoroTimer::kPostponeMinutes * 60);  // → BreakDue again
 
     QSignalSpy spy(&t, &PomodoroTimer::postponed);
     t.postponeBreak();  // refused — stuck at BreakDue
@@ -508,13 +534,19 @@ void TestPomodoroTimer::postponeBudgetOfThreeReachesZero() {
     // postpone is refused (UI then offers only 开始做操). Each postpone must
     // consume exactly ONE credit (B1: the plugin's window double-decrement is
     // a separate bug; the budget math itself lives here and is one-per-call).
+    //
+    // advance 步长用 kPostponeMinutes*60(300s) 而非 60s:首次循环 workMinutes=1
+    // 所以 60s 就到 BreakDue;但 postponeBreak() 后(Bug N 修复)remaining 变成
+    // 5 分钟,需要走完 300s 才回 BreakDue。onTick 在非 Working/BreakActive 状态
+    // 直接 return,所以多余的 tick 是 no-op,首次循环 advance(300) 也安全。
     PomodoroTimer t;
     QCOMPARE(t.maxPostpones(), 3);
     t.setWorkMinutes(1);
     t.start();
 
+    const int stepSec = PomodoroTimer::kPostponeMinutes * 60;
     for (int remaining = 3; remaining > 0; --remaining) {
-        t.advance(60);                                  // → BreakDue
+        t.advance(stepSec);                             // → BreakDue
         QCOMPARE(t.state(), PomodoroTimer::State::BreakDue);
         QCOMPARE(t.postponesRemaining(), remaining);
         t.postponeBreak();                              // spend one credit
@@ -523,7 +555,7 @@ void TestPomodoroTimer::postponeBudgetOfThreeReachesZero() {
     }
     QCOMPARE(t.postponesRemaining(), 0);
 
-    t.advance(60);                                      // → BreakDue, exhausted
+    t.advance(stepSec);                                 // → BreakDue, exhausted
     QSignalSpy postponedSpy(&t, &PomodoroTimer::postponed);
     t.postponeBreak();                                  // refused
     QCOMPARE(postponedSpy.count(), 0);
@@ -665,7 +697,9 @@ void TestPomodoroTimer::breakActiveAutoContinuesToWorking() {
     t.advance(60);  // → BreakDue
     t.postponeBreak();
     QCOMPARE(t.postponesRemaining(), 1);
-    t.advance(60);  // → BreakDue again
+    // Bug N: postpone 后 remaining = kPostponeMinutes*60(不是完整 workMinutes),
+    // 要走完 5 分钟才回 BreakDue。workMinutes=1 在这里只是为了缩短首个工作段。
+    t.advance(PomodoroTimer::kPostponeMinutes * 60);  // → BreakDue again
     t.startBreak(); // → BreakActive
 
     QSignalSpy endedSpy(&t, &PomodoroTimer::breakEnded);

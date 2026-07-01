@@ -63,6 +63,15 @@ signals:
     /// High-frequency — only connect from debug code. Used by tests
     /// to assert the hook is firing.
     void userInputDetected();
+
+    /// System suspend / resume edge (M5 fix for screen_time跨休眠计时膨胀).
+    /// Fires when the OS enters sleep/hibernate (suspended=true) and again
+    /// when it resumes (suspended=false). Plugins that track wall-clock
+    /// durations (screen_time app_session) should close any open interval
+    /// on the suspend edge so the sleep period isn't counted as usage.
+    /// macOS deferred — signal simply never fires there, matching the
+    /// InputMonitorService Mac gap (docs/12 §A19).
+    void systemSuspendStateChanged(bool suspended);
 };
 
 } // namespace Margin

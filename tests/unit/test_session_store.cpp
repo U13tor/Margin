@@ -46,6 +46,12 @@ private slots:
     void testComputeTimeBucketsMidnightBoundary();
     void testAllSessionsReturnsOldestFirst();
     void testClearAllWipesBothTables();
+    // M5 fix for 跨休眠计时膨胀: ensureSchema must clean up "abandoned"
+    // sessions left by crash / 硬关机 paths. See plan D3.
+    void testCleanupAbandonedSessionsCapsLongGap();
+    void testCleanupAbandonedSessionsPreservesShortGap();
+    void testCleanupAbandonedSessionsIgnoresClosedRows();
+    void testCleanupAbandonedSessionsIdempotent();
 };
 
 namespace {
@@ -276,6 +282,131 @@ void TestSessionStore::testClearAllWipesBothTables() {
 
     // Clearing an already-empty DB is safe (idempotent DELETE).
     QVERIFY(store.clearAll(mem.db));
+}
+
+// Helper: insert a raw "abandoned" session row directly bypassing the
+// normal open/close API. Mirrors what a Margin crash would leave behind
+// in margin.db — duration_ms = 0, ended_at = started_at sentinel.
+static long long insertAbandonedRow(Database& db, qint64 startedAt,
+                                    const QString& app = QStringLiteral("x.exe")) {
+    const auto tb = SessionStore::computeTimeBuckets(startedAt);
+    const QString sql = QStringLiteral(
+        "INSERT INTO screen_time_app_session "
+        "  (app_name, window_title_enc, category, exe_path, started_at, "
+        "   ended_at, duration_ms, is_idle_end, day_local, hour_local, "
+        "   weekday_local) "
+        "VALUES (:app, NULL, '', '', :started, :started, 0, 0, "
+        "        :day, :hour, :wd)");
+    QVariantMap params;
+    params.insert(QStringLiteral("app"), app);
+    params.insert(QStringLiteral("started"), QVariant::fromValue(startedAt));
+    params.insert(QStringLiteral("day"), tb.dayLocal);
+    params.insert(QStringLiteral("hour"), tb.hourLocal);
+    params.insert(QStringLiteral("wd"), tb.weekdayLocal);
+    if (!db.exec(sql, params)) return 0;
+    const auto rows = db.query(QStringLiteral("SELECT last_insert_rowid() AS id"));
+    if (rows.isEmpty()) return 0;
+    return rows.first().value(QStringLiteral("id")).toLongLong();
+}
+
+void TestSessionStore::testCleanupAbandonedSessionsCapsLongGap() {
+    // A session that started 5 hours ago and was never closed (e.g.
+    // user closed laptop lid after putting Margin to sleep, battery
+    // died). ensureSchema must infer ended_at = started_at + 1h cap
+    // — not 5h, since we can't know how much of the gap was real use
+    // vs sleep.
+    MemoryDb mem;
+    SessionStore store;
+    QVERIFY(store.ensureSchema(mem.db));  // initial ensure: no abandoned rows yet
+
+    const qint64 fiveHoursAgo = QDateTime::currentMSecsSinceEpoch() - 5 * 3600 * 1000;
+    const long long id = insertAbandonedRow(mem.db, fiveHoursAgo);
+    QVERIFY(id > 0);
+
+    // Re-run ensureSchema — this is the path the next Margin startup
+    // takes (plugin onLoad calls ensureSchema, which now runs cleanup).
+    QVERIFY(store.ensureSchema(mem.db));
+
+    const auto rows = mem.db.query(
+        QStringLiteral("SELECT duration_ms FROM screen_time_app_session WHERE id = :id"),
+        {{"id", QVariant::fromValue(id)}});
+    QCOMPARE(rows.size(), 1);
+    QCOMPARE(rows.first().value(QStringLiteral("duration_ms")).toLongLong(),
+             3'600'000LL);  // 1h cap
+}
+
+void TestSessionStore::testCleanupAbandonedSessionsPreservesShortGap() {
+    // A session started 30 minutes ago and never closed (Margin crashed
+    // shortly after opening). The 1h cap doesn't trigger — duration
+    // should equal actual elapsed time, not the cap.
+    MemoryDb mem;
+    SessionStore store;
+    QVERIFY(store.ensureSchema(mem.db));
+
+    const qint64 thirtyMinAgo = QDateTime::currentMSecsSinceEpoch() - 30 * 60 * 1000;
+    const long long id = insertAbandonedRow(mem.db, thirtyMinAgo);
+    QVERIFY(id > 0);
+
+    QVERIFY(store.ensureSchema(mem.db));
+
+    const auto rows = mem.db.query(
+        QStringLiteral("SELECT duration_ms FROM screen_time_app_session WHERE id = :id"),
+        {{"id", QVariant::fromValue(id)}});
+    QCOMPARE(rows.size(), 1);
+    const qint64 dur = rows.first().value(QStringLiteral("duration_ms")).toLongLong();
+    // Allow ±5s slack for test timing — the value should be very close
+    // to 30 * 60 * 1000 but not exactly (test exec latency).
+    QVERIFY2(dur > 25 * 60 * 1000 && dur < 35 * 60 * 1000,
+             qPrintable(QStringLiteral("expected ~30min, got %1 ms").arg(dur)));
+}
+
+void TestSessionStore::testCleanupAbandonedSessionsIgnoresClosedRows() {
+    // Properly closed sessions (duration_ms > 0) must not be touched
+    // by the cleanup. We verify this by writing a 5-minute closed
+    // session, then running cleanup, then asserting the duration is
+    // unchanged.
+    MemoryDb mem;
+    SessionStore store;
+    QVERIFY(store.ensureSchema(mem.db));
+
+    const qint64 started = 1'718'700'000'000LL;
+    const long long id = store.openSession(
+        mem.db, QStringLiteral("chrome.exe"), QByteArray("\xAA", 1),
+        QString(), QStringLiteral("C:/chrome.exe"), started);
+    QVERIFY(id > 0);
+    QVERIFY(store.closeSession(mem.db, id, started + 5 * 60 * 1000, /*isIdleEnd=*/false));
+
+    QVERIFY(store.ensureSchema(mem.db));  // should NOT touch the closed row
+
+    const auto rows = mem.db.query(
+        QStringLiteral("SELECT duration_ms FROM screen_time_app_session WHERE id = :id"),
+        {{"id", QVariant::fromValue(id)}});
+    QCOMPARE(rows.size(), 1);
+    QCOMPARE(rows.first().value(QStringLiteral("duration_ms")).toLongLong(),
+             5 * 60 * 1000LL);
+}
+
+void TestSessionStore::testCleanupAbandonedSessionsIdempotent() {
+    // Calling ensureSchema twice in a row (e.g. plugin reload without
+    // exit) must be safe. After the first call, every abandoned row
+    // has duration_ms > 0, so the second cleanup is a no-op.
+    MemoryDb mem;
+    SessionStore store;
+    QVERIFY(store.ensureSchema(mem.db));
+
+    const qint64 fiveHoursAgo = QDateTime::currentMSecsSinceEpoch() - 5 * 3600 * 1000;
+    const long long id = insertAbandonedRow(mem.db, fiveHoursAgo);
+    QVERIFY(id > 0);
+
+    QVERIFY(store.ensureSchema(mem.db));
+    QVERIFY(store.ensureSchema(mem.db));  // second call — must be a no-op
+
+    const auto rows = mem.db.query(
+        QStringLiteral("SELECT duration_ms FROM screen_time_app_session WHERE id = :id"),
+        {{"id", QVariant::fromValue(id)}});
+    QCOMPARE(rows.size(), 1);
+    QCOMPARE(rows.first().value(QStringLiteral("duration_ms")).toLongLong(),
+             3'600'000LL);  // still 1h, not double-applied
 }
 
 QTEST_MAIN(TestSessionStore)

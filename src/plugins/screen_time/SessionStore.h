@@ -150,6 +150,14 @@ public:
     static int dayLocalFromDate(const QDate& d) {
         return d.year() * 10000 + d.month() * 100 + d.day();
     }
+
+private:
+    /// M5 fix: cleanup "abandoned" sessions left by crash / 硬关机 paths.
+    /// Sets ended_at + duration_ms on every row where duration_ms = 0,
+    /// using MIN(started_at + 1h, now) as the inferred ended_at. Called
+    /// once at the tail of ensureSchema so it runs on every plugin onLoad.
+    /// See plan D3 for the rationale.
+    bool cleanupAbandonedSessions(Database& db);
 };
 
 } // namespace Margin::Plugins::ScreenTime

@@ -93,7 +93,34 @@ bool SessionStore::ensureSchema(Database& db) {
             return false;
         }
     }
-    return true;
+    return cleanupAbandonedSessions(db);
+}
+
+bool SessionStore::cleanupAbandonedSessions(Database& db) {
+    // Crash / 硬关机 path的兜底清理。正常路径下 closeSession 总会把
+    // duration_ms 写为正数;只有 Margin 进程异常终止(BSOD、电池耗尽、
+    // kill -9)才会留下 duration_ms = 0 的"开口" session。这些行的
+    // ended_at 仍是 openSession 写入的 sentinel(started_at),如果不管,
+    // 下次启动后报表的 SUM(duration_ms) 跳过它们(0),但其它统计
+    // (MIN(started_at) 等)和 UX 都会受影响。
+    //
+    // 兜底策略:用 started_at + cap_ms 推断 ended_at。cap = 1h,理由是
+    // 单 app 连续使用 ≤1h 不切窗 / 不 idle 是常态,开口 session 极少
+    // 跨越更长真实使用时间。如果 started_at + cap 已超过"现在",说明
+    // session 是最近 crash 留下的,按 now - started_at 算(避免把未来
+    // 时间当 duration)。详见 plan D3(M5 修跨休眠计时膨胀)。
+    constexpr qint64 kCapMs = 3'600'000;  // 1 hour
+    const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+    const QString sql = QStringLiteral(
+        "UPDATE screen_time_app_session "
+        "SET ended_at = MIN(started_at + :cap, :now), "
+        "    duration_ms = MIN(started_at + :cap, :now) - started_at "
+        "WHERE duration_ms = 0"
+    );
+    QVariantMap params;
+    params.insert(QStringLiteral("cap"), QVariant::fromValue(kCapMs));
+    params.insert(QStringLiteral("now"), QVariant::fromValue(nowMs));
+    return db.exec(sql, params);
 }
 
 SessionStore::TimeBuckets SessionStore::computeTimeBuckets(qint64 epochMs) {

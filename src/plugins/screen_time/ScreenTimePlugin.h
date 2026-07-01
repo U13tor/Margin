@@ -155,6 +155,11 @@ private:
                                const QString& windowTitle);
     void onIdleStateChanged(bool idle);
 
+    // M5 fix for跨休眠计时膨胀: close the in-flight session on the suspend
+    // edge so the sleep period isn't counted as app usage. Resume edge is
+    // a no-op — the next activeWindowChanged opens a fresh session.
+    void onSystemSuspendStateChanged(bool suspended);
+
     // Close the in-flight session row (if any). Pure helper — callers
     // already hold m_currentRowId / m_currentApp + the ended_at + isIdleEnd.
     void closeCurrentSession(qint64 endedAt, bool isIdleEnd);

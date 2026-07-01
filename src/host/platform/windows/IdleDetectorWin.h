@@ -19,6 +19,7 @@
 
 #include "Margin/InputMonitorService.h"
 
+#include <QAbstractNativeEventFilter>
 #include <QTimer>
 
 #include <atomic>
@@ -30,7 +31,7 @@
 
 namespace Margin {
 
-class IdleDetectorWin : public InputMonitorService {
+class IdleDetectorWin : public InputMonitorService, public QAbstractNativeEventFilter {
     Q_OBJECT
 
 public:
@@ -47,6 +48,13 @@ public:
     void setIdleThresholdMs(int ms) override;
     int  idleThresholdMs() const override;
     bool isUserIdle() const override;
+
+    // QAbstractNativeEventFilter — installed on QCoreApplication inside
+    // startMonitoring. Filters WM_POWERBROADCAST so we emit
+    // systemSuspendStateChanged on sleep/resume edges. Returns false for
+    // all messages so they continue normal dispatch.
+    bool nativeEventFilter(const QByteArray& eventType, void* message,
+                           qintptr* result) override;
 
 private:
     // Static C callbacks registered with SetWindowsHookExW. Both route
@@ -76,6 +84,9 @@ private:
     QTimer   m_idleTimer;
     int      m_thresholdMs  = 0;
     bool     m_isIdle       = false;
+    // True between PBT_APMSUSPEND and PBT_APMRESUMEAUTOMATIC. Lets us
+    // coalesce duplicate resume broadcasts and avoid double-emitting.
+    bool     m_isSuspended  = false;
     std::atomic<qint64> m_lastInputMs {0};
 };
 

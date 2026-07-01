@@ -148,6 +148,10 @@ public:
     static constexpr int kDefaultBreakMinutes = 5;
     static constexpr int kDefaultMaxPostpones = 3;
     static constexpr int kDefaultTargetRounds = 5;
+    // Postpone 短期倒计时长度。RhythmToast「推迟 5 分钟」按钮的语义承诺:
+    // 点击后进入 5 分钟工作倒计时(而非完整工作番茄),到期重新 emit breakDue。
+    // 常量与按钮文案硬绑,改这里要同步 i18n 文案。
+    static constexpr int kPostponeMinutes     = 5;
 
     static int clampWorkMinutes(int m)  { return qBound(kMinWorkMinutes,  m, kMaxWorkMinutes); }
     static int clampBreakMinutes(int m) { return qBound(kMinBreakMinutes, m, kMaxBreakMinutes); }

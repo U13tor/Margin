@@ -215,6 +215,10 @@ void ScreenTimePlugin::wireSignals() {
             this, &ScreenTimePlugin::onActiveWindowChanged);
     connect(m_inputMonitor, &InputMonitorService::userIdleStateChanged,
             this, &ScreenTimePlugin::onIdleStateChanged);
+    // M5 fix for跨休眠计时膨胀 — close in-flight session at suspend so the
+    // sleep period doesn't get billed to whatever app was foreground.
+    connect(m_inputMonitor, &InputMonitorService::systemSuspendStateChanged,
+            this, &ScreenTimePlugin::onSystemSuspendStateChanged);
 
     // Passive hooks: the host installs them lazily (tracker.isActive() ==
     // false until first startMonitoring). We start them now so signal
@@ -311,6 +315,28 @@ void ScreenTimePlugin::onIdleStateChanged(bool idle) {
         // New pickup just landed — refresh so the count ticks up.
         refreshReport();
     }
+}
+
+void ScreenTimePlugin::onSystemSuspendStateChanged(bool suspended) {
+    if (!m_store || !m_database) return;
+
+    if (!suspended) {
+        // Resume edge — don't open a synthetic session; let the next
+        // activeWindowChanged do it. Refresh so the UI is current if
+        // the user just woke the machine and looked at the dashboard.
+        refreshReport();
+        return;
+    }
+
+    // Suspend edge: close the in-flight session immediately so its
+    // duration_ms stops accumulating wall-clock during sleep. isIdleEnd
+    // is false — this isn't a user-idle transition. Safe no-op if no
+    // session is live (idle / already-closed / pre-first-switch).
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    closeCurrentSession(now, /*isIdleEnd=*/false);
+    m_currentApp.clear();
+    m_currentSessionStartedAt = 0;
+    emit currentAppChanged();
 }
 
 void ScreenTimePlugin::rebuildReportCache() {

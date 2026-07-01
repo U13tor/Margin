@@ -143,7 +143,15 @@ void PomodoroTimer::postponeBreak() {
     --m_postponesRemaining;
     emit postponesRemainingChanged();
     emit postponed();
-    enterWorking();
+    // 真正的「推迟 5 分钟」:进入 Working 但 m_remainingSec 只设 kPostponeMinutes,
+    // 自然走 Working → onTick → enterBreakDue 路径,5 分钟后重新弹 toast。
+    // 不复用 enterWorking() —— 那是「开始完整工作番茄」的入口(start() /
+    // autoContinueCycle 共用),会把 remaining 重置为 m_workMinutes*60(默认 45
+    // 分钟),与按钮文案「推迟 5 分钟」不符。
+    setState(State::Working);
+    m_remainingSec = kPostponeMinutes * 60;
+    emit remainingChanged();
+    m_tickTimer.start();
 }
 
 void PomodoroTimer::skipBreak() {
