@@ -230,8 +230,7 @@ jobs:
 
             ## SmartScreen 提示
 
-            v1.0 安装包**未做代码签名**(代码签名推迟到 v1.1+,见
-            [docs/12-deferred-items.md C2/A5](https://github.com/U13tor/Margin/blob/main/docs/12-deferred-items.md))。
+            v1.0 安装包**未做代码签名**(代码签名推迟到 v1.1+)。
 
             首次运行 `Margin-Setup-${{ steps.ver.outputs.version }}-x64.exe` 时,Windows
             SmartScreen 会显示 "Windows 已保护你的电脑":
