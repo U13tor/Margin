@@ -47,7 +47,6 @@ QString readTextFile(const QString& path) {
 } // namespace
 
 void TestPathsMigrate::missingSourceIsNoOp() {
-    fprintf(stderr, "[SLOT] missingSourceIsNoOp ENTER\n");
     QTemporaryDir tmp;
     QVERIFY(tmp.isValid());
     const QString src = tmp.path() + QStringLiteral("/nope.db");
@@ -58,7 +57,6 @@ void TestPathsMigrate::missingSourceIsNoOp() {
 }
 
 void TestPathsMigrate::existingDestIsIdempotent() {
-    fprintf(stderr, "[SLOT] existingDestIsIdempotent ENTER\n");
     QTemporaryDir tmp;
     QVERIFY(tmp.isValid());
     const QString src = tmp.path() + QStringLiteral("/origin.dat");
@@ -73,7 +71,6 @@ void TestPathsMigrate::existingDestIsIdempotent() {
 }
 
 void TestPathsMigrate::migratesSingleFile() {
-    fprintf(stderr, "[SLOT] migratesSingleFile ENTER\n");
     QTemporaryDir tmp;
     QVERIFY(tmp.isValid());
     const QString src = tmp.path() + QStringLiteral("/legacy/margin.db");
@@ -91,50 +88,28 @@ void TestPathsMigrate::migratesSingleFile() {
 }
 
 void TestPathsMigrate::migratesDirectoryRecursive() {
-    fprintf(stderr, "[SLOT] migratesDirectoryRecursive ENTER\n");
     QTemporaryDir tmp;
-    fprintf(stderr, "[STEP1] QTemporaryDir created, isValid=%d path=%s\n",
-            tmp.isValid() ? 1 : 0,
-            qPrintable(tmp.path()));
     QVERIFY(tmp.isValid());
     const QString srcRoot = tmp.path() + QStringLiteral("/legacy/keyring");
     const QString dstRoot = tmp.path() + QStringLiteral("/fresh/keyring");
-    fprintf(stderr, "[STEP2] srcRoot=%s\n", qPrintable(srcRoot));
+    // Build a 2-level tree mirroring Keyring's <service>/<key>.bin layout.
+    // Avoid Windows reserved device names (AUX/CON/PRN/NUL/COM*/LPT*) —
+    // Windows Server 2022 (CI runner) rejects CreateFile for "aux.*" while
+    // Windows 11 LTSC tolerates it, causing flaky cross-version failures.
+    QVERIFY(QDir().mkpath(srcRoot + QStringLiteral("/Margin")));
+    QVERIFY(writeTextFile(srcRoot + QStringLiteral("/Margin/master.bin"),
+                          QStringLiteral("MASTER-KEY-BYTES")));
+    QVERIFY(writeTextFile(srcRoot + QStringLiteral("/Margin/secondary.bin"),
+                          QStringLiteral("SECONDARY")));
 
-    const bool mkOk = QDir().mkpath(srcRoot + QStringLiteral("/Margin"));
-    fprintf(stderr, "[STEP3] mkpath Margin=%d\n", mkOk ? 1 : 0);
-    QVERIFY(mkOk);
-
-    const bool wMaster = writeTextFile(srcRoot + QStringLiteral("/Margin/master.bin"),
-                                       QStringLiteral("MASTER-KEY-BYTES"));
-    fprintf(stderr, "[STEP4] writeTextFile master.bin=%d\n", wMaster ? 1 : 0);
-    QVERIFY(wMaster);
-
-    const bool wAux = writeTextFile(srcRoot + QStringLiteral("/Margin/aux.bin"),
-                                    QStringLiteral("AUX"));
-    fprintf(stderr, "[STEP5] writeTextFile aux.bin=%d\n", wAux ? 1 : 0);
-    QVERIFY(wAux);
-
-    fprintf(stderr, "[STEP6] calling migrateItem\n");
-    const bool migOk = Margin::Paths::migrateItem(srcRoot, dstRoot);
-    fprintf(stderr, "[STEP7] migrateItem=%d\n", migOk ? 1 : 0);
-    QVERIFY(migOk);
-
-    const bool eMaster = QFileInfo::exists(dstRoot + QStringLiteral("/Margin/master.bin"));
-    fprintf(stderr, "[STEP8] exists master.bin=%d\n", eMaster ? 1 : 0);
-    QVERIFY(eMaster);
-
-    const bool eAux = QFileInfo::exists(dstRoot + QStringLiteral("/Margin/aux.bin"));
-    fprintf(stderr, "[STEP9] exists aux.bin=%d\n", eAux ? 1 : 0);
-    QVERIFY(eAux);
-
-    const QString got = readTextFile(dstRoot + QStringLiteral("/Margin/master.bin"));
-    fprintf(stderr, "[STEP10] readTextFile='%s'\n", qPrintable(got));
-    QCOMPARE(got, QStringLiteral("MASTER-KEY-BYTES"));
+    QVERIFY(Margin::Paths::migrateItem(srcRoot, dstRoot));
+    QVERIFY(QFileInfo::exists(dstRoot + QStringLiteral("/Margin/master.bin")));
+    QVERIFY(QFileInfo::exists(dstRoot + QStringLiteral("/Margin/secondary.bin")));
+    QCOMPARE(readTextFile(dstRoot + QStringLiteral("/Margin/master.bin")),
+             QStringLiteral("MASTER-KEY-BYTES"));
 }
 
 void TestPathsMigrate::secondCallIsIdempotent() {
-    fprintf(stderr, "[SLOT] secondCallIsIdempotent ENTER\n");
     QTemporaryDir tmp;
     QVERIFY(tmp.isValid());
     const QString src = tmp.path() + QStringLiteral("/origin.dat");
