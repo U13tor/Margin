@@ -24,8 +24,8 @@
 //   - VFT_APP = 0x1L (FILETYPE for executable)
 
 1 VERSIONINFO
- FILEVERSION @MARGIN_VERSION_MAJOR@,@MARGIN_VERSION_MINOR@,@MARGIN_VERSION_PATCH@,0
- PRODUCTVERSION @MARGIN_VERSION_MAJOR@,@MARGIN_VERSION_MINOR@,@MARGIN_VERSION_PATCH@,0
+ FILEVERSION @MARGIN_FILEVERSION_NUMERIC@
+ PRODUCTVERSION @MARGIN_VERSION_MAJOR@,@MARGIN_VERSION_MINOR@,@MARGIN_VERSION_PATCH@,@MARGIN_FILEVERSION_HHMM_INT@
  FILEFLAGSMASK 0x3fL
  FILEFLAGS 0x0L
  FILEOS 0x40004L
@@ -38,7 +38,8 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "Margin"
             VALUE "FileDescription", "Margin - desktop rhythm conductor"
-            VALUE "FileVersion", "@MARGIN_RELEASE_VERSION@+build.@MARGIN_BUILD_STAMP@"
+            VALUE "Comments", "Build date: @MARGIN_BUILD_DATE@"
+            VALUE "FileVersion", "@MARGIN_FILEVERSION_DISPLAY@"
             VALUE "InternalName", "Margin"
             VALUE "LegalCopyright", "Margin contributors - LGPL-3.0-or-later"
             VALUE "OriginalFilename", "Margin.exe"

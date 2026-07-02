@@ -50,6 +50,41 @@ else()
     set(MARGIN_VERSION_PATCH 0)
 endif()
 
+# FILEVERSION / VIProductVersion 4 段每段是 WORD(16 位),最大 65535
+# (NSIS makensis 与 Windows VS_FIXEDFILEINFO 都强制此范围)。
+# 用户期望"文件版本"读出来像时间戳而非语义版本,所以 4 段全部用来编码
+# 时间:YYYY.MM.DD.HHMM,展示形如 2026.7.2.1031。完整时间戳
+# 2026.07.02.10.31 由 StringFileInfo FileVersion 字符串字段承载(free-form,
+# 不受 4×WORD 限制)—— Windows Explorer 在 Properties → Details → 文件版本
+# 行优先显示字符串,数字段作 fallback 与程序化读取。
+#
+# 每段保持为无前导零的纯整数(RC 编译器 + NSIS 都把 "0702" 当八进制 = 450
+# 解析,会失真)。MM/DD 单段拆分而非合并 MMDD,既避开八进制陷阱,又让展示
+# 数字段也保留可读日期结构。
+string(SUBSTRING "${MARGIN_BUILD_STAMP}" 0 4 MARGIN_FILEVERSION_YEAR)
+string(SUBSTRING "${MARGIN_BUILD_STAMP}" 4 2 MARGIN_FILEVERSION_MONTH)
+string(SUBSTRING "${MARGIN_BUILD_STAMP}" 6 2 MARGIN_FILEVERSION_DAY)
+string(SUBSTRING "${MARGIN_BUILD_STAMP}" 8 4 MARGIN_FILEVERSION_HHMM)
+# 去前导零:用 math EXPR 把 "07" 之类的字符串强转为十进制整数。
+math(EXPR MARGIN_FILEVERSION_MONTH_INT "${MARGIN_FILEVERSION_MONTH}")
+math(EXPR MARGIN_FILEVERSION_DAY_INT  "${MARGIN_FILEVERSION_DAY}")
+math(EXPR MARGIN_FILEVERSION_HHMM_INT "${MARGIN_FILEVERSION_HHMM}")
+set(MARGIN_FILEVERSION_NUMERIC "${MARGIN_FILEVERSION_YEAR},${MARGIN_FILEVERSION_MONTH_INT},${MARGIN_FILEVERSION_DAY_INT},${MARGIN_FILEVERSION_HHMM_INT}")
+
+# 用户可读的展示串,格式 YYYY.MM.DD.HH.MM,用于 StringFileInfo FileVersion。
+# 从 BUILD_STAMP 切片而非两个 TIMESTAMP 调用,保证数字段与字符串段同源
+# (避免配置阶段跨秒漂移导致两段不一致)。
+string(SUBSTRING "${MARGIN_BUILD_STAMP}" 0 4 _y)
+string(SUBSTRING "${MARGIN_BUILD_STAMP}" 4 2 _mo)
+string(SUBSTRING "${MARGIN_BUILD_STAMP}" 6 2 _d)
+string(SUBSTRING "${MARGIN_BUILD_STAMP}" 8 2 _h)
+string(SUBSTRING "${MARGIN_BUILD_STAMP}" 10 2 _mi)
+string(CONCAT MARGIN_FILEVERSION_DISPLAY "${_y}.${_mo}.${_d}.${_h}.${_mi}")
+
+# Human-readable build timestamp for StringFileInfo Comments field
+# (Properties → Details → Comments shows "Build date: YYYY-MM-DD HH:MM:SS").
+string(TIMESTAMP MARGIN_BUILD_DATE "%Y-%m-%d %H:%M:%S")
+
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)

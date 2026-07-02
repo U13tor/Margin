@@ -127,6 +127,20 @@ if(WIN32)
     set_tests_properties(test_keyring PROPERTIES LABELS "unit")
 endif()
 
+# Paths::migrateItem test seam (m6-c5 PR3: Paths::data() Roaming refactor).
+# Drives the public migrateItem primitive against QTemporaryDir-backed paths;
+# migrateFromLegacyLayout() is a thin wrapper over QStandardPaths and is not
+# exercised here (mocking Qt global state would be disproportionate).
+add_executable(test_paths_migrate unit/test_paths_migrate.cpp)
+target_link_libraries(test_paths_migrate PRIVATE
+    margin_paths
+    Qt6::Core
+    Qt6::Test
+)
+target_include_directories(test_paths_migrate PRIVATE "${CMAKE_SOURCE_DIR}/src")
+add_test(NAME test_paths_migrate COMMAND test_paths_migrate)
+set_tests_properties(test_paths_migrate PROPERTIES LABELS "unit")
+
 # M0-C10a/b: dashboard shell QML load test. Runs offscreen (set via test
 # ENVIRONMENT) so it is headless on CI. Links the Primitives qml-module plugin
 # so the shell's `import Margin.Ui.Primitives` resolves; ui.qrc provides the

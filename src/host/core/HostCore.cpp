@@ -41,6 +41,14 @@ HostCore::~HostCore() = default;
 
 bool HostCore::bootstrap() {
     Paths::ensureDirs();
+    // Migrate legacy INSTDIR-localised user data (margin.db / keyring / user
+    // plugins) to the new Roaming layout BEFORE any service touches those
+    // paths. Keyring::getOrCreateMasterKey + Database::open below read
+    // Paths::data()/dbFile() — without this call, a user upgrading from a
+    // build before the Roaming refactor would have their old master.bin
+    // orphaned under %LOCALAPPDATA%\Margin\keyring\ and Aura encrypted
+    // settings would silently lose their plaintext (AES-GCM tag mismatch).
+    Paths::migrateFromLegacyLayout();
     m_logger = std::make_unique<LoggerImpl>(Paths::logs());
     m_settings = std::make_unique<SettingsImpl>(Paths::config());
     applyLogLevel();

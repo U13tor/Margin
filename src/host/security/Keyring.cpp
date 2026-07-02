@@ -3,7 +3,9 @@
 // Win: DPAPI (CryptProtectData / CryptUnprotectData) wraps the secret with
 // the current Windows account key; the encrypted blob is stored on disk
 // under Paths::data()/keyring/<service>/<key>.bin (file ACL defaults to the
-// current user). Mac: deferred — see docs/12-deferred-items.md C6.
+// current user). Paths::data() resolves to %APPDATA%\Margin\data (Roaming),
+// so the master key survives NSIS uninstall (RMDir /r $INSTDIR only clears
+// %LOCALAPPDATA%\Margin). Mac: deferred — see docs/12-deferred-items.md C6.
 //
 // AES-256-GCM field primitive uses Windows CNG (BCrypt). Qt 6.7 has no
 // native AES-GCM API — see docs/12-deferred-items.md D5-1. Output layout

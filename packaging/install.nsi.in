@@ -27,7 +27,7 @@
 !define APP_NAME "Margin"
 !define APP_FULL_NAME "Margin — 息间"
 !define APP_VERSION "@MARGIN_RELEASE_VERSION@"
-!define APP_FILE_VERSION "@MARGIN_RELEASE_VERSION@+build.@MARGIN_BUILD_STAMP@"
+!define APP_FILE_VERSION "@MARGIN_FILEVERSION_DISPLAY@"
 !define APP_PUBLISHER "Margin contributors"
 !define APP_URL "https://github.com/U13tor/Margin"
 !define APP_EXE "Margin.exe"
@@ -51,6 +51,12 @@ InstallDir "$LOCALAPPDATA\${APP_NAME}"
 InstallDirRegKey HKCU "Software\${APP_NAME}" "InstallDir"
 
 ;--- Pages ----------------------------------------------------------------
+; MUI_FINISHPAGE_RUN must be defined before MUI_PAGE_FINISH — NSIS expands
+; the macro at page insertion, so defining it after has no effect
+; (NSIS MUI Reference §"Interface configuration"). Default-checked checkbox;
+; user can opt out before clicking Finish.
+!define MUI_FINISHPAGE_RUN "$INSTDIR\${APP_EXE}"
+!define MUI_FINISHPAGE_RUN_TEXT "启动 Margin"
 !insertmacro MUI_PAGE_LICENSE "${LICENSE_FILE}"
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
@@ -65,13 +71,14 @@ InstallDirRegKey HKCU "Software\${APP_NAME}" "InstallDir"
 !insertmacro MUI_LANGUAGE "English"
 
 ;--- Version info embedded in the installer .exe itself -------------------
-VIProductVersion @MARGIN_VERSION_MAJOR@.@MARGIN_VERSION_MINOR@.@MARGIN_VERSION_PATCH@.0
+VIProductVersion @MARGIN_FILEVERSION_YEAR@.@MARGIN_FILEVERSION_MONTH_INT@.@MARGIN_FILEVERSION_DAY_INT@.@MARGIN_FILEVERSION_HHMM_INT@
 VIAddVersionKey /LANG=2052 "ProductName" "${APP_FULL_NAME}"
 VIAddVersionKey /LANG=2052 "FileVersion" "${APP_FILE_VERSION}"
 VIAddVersionKey /LANG=2052 "ProductVersion" "${APP_VERSION}"
 VIAddVersionKey /LANG=2052 "CompanyName" "${APP_PUBLISHER}"
 VIAddVersionKey /LANG=2052 "LegalCopyright" "LGPL-3.0-or-later"
 VIAddVersionKey /LANG=2052 "FileDescription" "${APP_FULL_NAME} installer"
+VIAddVersionKey /LANG=2052 "Comments" "Build date: @MARGIN_BUILD_DATE@"
 
 ;--- Install section ------------------------------------------------------
 Section "Install"
@@ -113,8 +120,6 @@ Section "Install"
   ; Start menu shortcut (per-user: $SMPROGRAMS is the user's Start Menu).
   CreateShortCut "$SMPROGRAMS\${APP_FULL_NAME}.lnk" "$INSTDIR\${APP_EXE}" \
     "" "$INSTDIR\${APP_EXE}" 0
-
-  SetAutoClose true
 SectionEnd
 
 ;--- Uninstall section ----------------------------------------------------
