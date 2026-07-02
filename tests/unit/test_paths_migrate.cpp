@@ -47,6 +47,7 @@ QString readTextFile(const QString& path) {
 } // namespace
 
 void TestPathsMigrate::missingSourceIsNoOp() {
+    fprintf(stderr, "[SLOT] missingSourceIsNoOp ENTER\n");
     QTemporaryDir tmp;
     QVERIFY(tmp.isValid());
     const QString src = tmp.path() + QStringLiteral("/nope.db");
@@ -57,6 +58,7 @@ void TestPathsMigrate::missingSourceIsNoOp() {
 }
 
 void TestPathsMigrate::existingDestIsIdempotent() {
+    fprintf(stderr, "[SLOT] existingDestIsIdempotent ENTER\n");
     QTemporaryDir tmp;
     QVERIFY(tmp.isValid());
     const QString src = tmp.path() + QStringLiteral("/origin.dat");
@@ -71,6 +73,7 @@ void TestPathsMigrate::existingDestIsIdempotent() {
 }
 
 void TestPathsMigrate::migratesSingleFile() {
+    fprintf(stderr, "[SLOT] migratesSingleFile ENTER\n");
     QTemporaryDir tmp;
     QVERIFY(tmp.isValid());
     const QString src = tmp.path() + QStringLiteral("/legacy/margin.db");
@@ -88,16 +91,25 @@ void TestPathsMigrate::migratesSingleFile() {
 }
 
 void TestPathsMigrate::migratesDirectoryRecursive() {
+    fprintf(stderr, "[SLOT] migratesDirectoryRecursive ENTER\n");
     QTemporaryDir tmp;
     QVERIFY(tmp.isValid());
     const QString srcRoot = tmp.path() + QStringLiteral("/legacy/keyring");
     const QString dstRoot = tmp.path() + QStringLiteral("/fresh/keyring");
     // Build a 2-level tree mirroring Keyring's <service>/<key>.bin layout.
+    if (!QDir().mkpath(srcRoot + QStringLiteral("/Margin"))) {
+        fprintf(stderr, "[DBG] mkpath failed: %s\n", qPrintable(srcRoot + "/Margin"));
+    }
     QVERIFY(QDir().mkpath(srcRoot + QStringLiteral("/Margin")));
+    if (!writeTextFile(srcRoot + QStringLiteral("/Margin/master.bin"),
+                       QStringLiteral("MASTER-KEY-BYTES"))) {
+        fprintf(stderr, "[DBG] writeTextFile master.bin failed\n");
+    }
     QVERIFY(writeTextFile(srcRoot + QStringLiteral("/Margin/master.bin"),
                           QStringLiteral("MASTER-KEY-BYTES")));
     QVERIFY(writeTextFile(srcRoot + QStringLiteral("/Margin/aux.bin"),
                           QStringLiteral("AUX")));
+    fprintf(stderr, "[SLOT] migratesDirectoryRecursive setup done, calling migrateItem\n");
 
     QVERIFY(Margin::Paths::migrateItem(srcRoot, dstRoot));
     QVERIFY(QFileInfo::exists(dstRoot + QStringLiteral("/Margin/master.bin")));
@@ -107,6 +119,7 @@ void TestPathsMigrate::migratesDirectoryRecursive() {
 }
 
 void TestPathsMigrate::secondCallIsIdempotent() {
+    fprintf(stderr, "[SLOT] secondCallIsIdempotent ENTER\n");
     QTemporaryDir tmp;
     QVERIFY(tmp.isValid());
     const QString src = tmp.path() + QStringLiteral("/origin.dat");
