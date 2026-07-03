@@ -43,9 +43,19 @@ bool copyDirRecursive(const QString& src, const QString& dst) {
 } // namespace
 
 QString Paths::config() {
-    // %APPDATA%\Margin (Win Roaming) | ~/Library/Preferences/Margin (macOS).
-    // AppConfigLocation:settings.json lives directly under here (no /config
-    // subdir; main.cpp:31 sets org name to empty so Qt does not double-nest).
+    // Win: %APPDATA%\Margin (Roaming) | macOS: ~/Library/Preferences/Margin.
+    // AppConfigLocation in Qt 6.7 with an empty org name (main.cpp:31) degrades
+    // to AppLocalDataLocation (= %LOCALAPPDATA%\Margin = NSIS InstallDir,
+    // wiped on uninstall), NOT the Roaming path the Qt docs suggest. So on
+    // Windows we hardcode %APPDATA% to match data()/userPlugins(); macOS keeps
+    // AppConfigLocation (correctly resolves to ~/Library/Preferences/Margin).
+    // See docs/15-dev-gotchas.md D8 for the empirical breakdown.
+#if defined(Q_OS_WIN)
+    const QByteArray appdata = qgetenv("APPDATA");
+    if (!appdata.isEmpty()) {
+        return QString::fromLocal8Bit(appdata) + QLatin1String("/Margin");
+    }
+#endif
     return QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
 }
 
@@ -142,16 +152,20 @@ bool Paths::migrateItem(const QString& src, const QString& dst) {
 
 void Paths::migrateFromLegacyLayout() {
 #if defined(Q_OS_WIN)
-    // Legacy Paths::data() (= AppDataLocation) used to land at
-    // %LOCALAPPDATA%\Margin\, which is exactly the NSIS InstallDir. Any
-    // margin.db / keyring/ / user plugins/ written there get wiped on
-    // uninstall (RMDir /r "$INSTDIR"). Migrate them to the new Roaming
-    // layout before any consumer reads Paths::data()/dbFile().
+    // Legacy Paths::data() (= AppDataLocation) and legacy Paths::config()
+    // (= AppConfigLocation, which degrades to AppLocalDataLocation when org
+    // name is empty — see D8) both used to land at %LOCALAPPDATA%\Margin\,
+    // which is exactly the NSIS InstallDir. Any margin.db / keyring/ /
+    // settings.json written there get wiped on uninstall (RMDir /r "$INSTDIR").
+    // Migrate them to the new Roaming layout before any consumer reads
+    // Paths::data()/dbFile()/config().
     //
     // Source file/dir kept in place after copy — the next NSIS uninstall
     // cleans INSTDIR naturally, and a downgrade reinstall can still find
-    // the legacy data. We do NOT migrate settings.json because it has
-    // always lived under Paths::config() (= Roaming), unaffected.
+    // the legacy data. settings.json was originally thought to be unaffected
+    // (the prior data()/keyring migration skipped it, assuming config() was
+    // already Roaming-safe); that assumption was wrong because of the
+    // empty-org-name degradation documented in D8. This site closes the gap.
     const QString legacyRoot =
         QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
     if (legacyRoot.isEmpty()) return;
@@ -160,6 +174,8 @@ void Paths::migrateFromLegacyLayout() {
                 data() + QLatin1String("/margin.db"));
     migrateItem(legacyRoot + QLatin1String("/keyring"),
                 data() + QLatin1String("/keyring"));
+    migrateItem(legacyRoot + QLatin1String("/settings.json"),
+                config() + QLatin1String("/settings.json"));
     // Note: legacy plugins/ is intentionally NOT migrated. The legacy layout
     // had userPlugins() overlap officialPlugins() (= INSTDIR/plugins), so a
     // blind copy would duplicate bundled plugins into userPlugins() and cause

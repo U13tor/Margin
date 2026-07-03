@@ -23,6 +23,8 @@ private slots:
     void missingSourceIsNoOp();
     void existingDestIsIdempotent();
     void migratesSingleFile();
+    void migratesSettingsJsonFromLegacy();
+    void preservesExistingSettingsJsonOnConflict();
     void migratesDirectoryRecursive();
     void secondCallIsIdempotent();
 };
@@ -85,6 +87,78 @@ void TestPathsMigrate::migratesSingleFile() {
     // reinstall can still find the legacy data until NSIS uninstall wipes
     // the legacy INSTDIR.
     QVERIFY(QFileInfo::exists(src));
+}
+
+void TestPathsMigrate::migratesSettingsJsonFromLegacy() {
+    // Reproduces the M6-C5+1 scenario at the unit level: settings.json that
+    // used to live under %LOCALAPPDATA%\Margin\ (= legacyRoot, == NSIS
+    // InstallDir) must be copied to the Roaming config dir on first launch
+    // after the fix, so that uninstall/reinstall no longer wipes Aura's
+    // paired-device + encrypted settings. The encrypted ct/iv blobs are
+    // opaque to migrateItem — it just copies bytes — so any valid JSON
+    // shape stands in for the real payload.
+    QTemporaryDir tmp;
+    QVERIFY(tmp.isValid());
+    const QString legacyConfigDir = tmp.path() + QStringLiteral("/legacy");
+    const QString roamingConfigDir = tmp.path() + QStringLiteral("/roaming");
+    QVERIFY(QDir().mkpath(legacyConfigDir));
+    const QString payload = QStringLiteral(
+        "{\"plugins\":{\"aura\":{"
+        "\"paired_device_identifier\":{\"__encrypted__\":true,"
+        "\"ct\":\"0f8DBS2a/QwS9ioy4nICO0FUHdfIH0SlH2Fau46a3QzbkNms6UQdaA==\","
+        "\"iv\":\"S5R1ukscsWVRRrS+\"},"
+        "\"rssi_threshold\":-90}}}");
+    QVERIFY(writeTextFile(legacyConfigDir + QStringLiteral("/settings.json"),
+                          payload));
+
+    QVERIFY(Margin::Paths::migrateItem(
+        legacyConfigDir + QStringLiteral("/settings.json"),
+        roamingConfigDir + QStringLiteral("/settings.json")));
+
+    QVERIFY(QFileInfo::exists(roamingConfigDir
+                              + QStringLiteral("/settings.json")));
+    QCOMPARE(readTextFile(roamingConfigDir
+                          + QStringLiteral("/settings.json")),
+             payload);
+    // Source preserved — uninstall will clean it later, not migrateItem.
+    QVERIFY(QFileInfo::exists(legacyConfigDir
+                              + QStringLiteral("/settings.json")));
+}
+
+void TestPathsMigrate::preservesExistingSettingsJsonOnConflict() {
+    // If the user already launched the fixed build once (settings.json
+    // written to Roaming) and then a stale installer drops an old Local
+    // build's settings.json back into legacyRoot, migrateItem must NOT
+    // clobber the user's current Roaming settings.json. Same idempotency
+    // contract as existingDestIsIdempotent, but with realistic JSON content
+    // to guard against a future refactor that might switch on file type.
+    QTemporaryDir tmp;
+    QVERIFY(tmp.isValid());
+    const QString legacyConfigDir = tmp.path() + QStringLiteral("/legacy");
+    const QString roamingConfigDir = tmp.path() + QStringLiteral("/roaming");
+    QVERIFY(QDir().mkpath(legacyConfigDir));
+    QVERIFY(QDir().mkpath(roamingConfigDir));
+    // Payload strings kept out of the QVERIFY() argument list because moc's
+    // macro-argument scanner mishandles `\"` sequences inside string literals
+    // embedded directly in a QVERIFY expansion (build error "missing ')' in
+    // macro usage"). Assigning to a local variable first sidesteps it.
+    const QString legacyPayload = QStringLiteral(
+        "{\"plugins\":{\"aura\":{\"old\":1}}}");
+    const QString freshPayload = QStringLiteral(
+        "{\"plugins\":{\"aura\":{\"paired_device_identifier\":"
+        "{\"__encrypted__\":true,\"ct\":\"FRESH\",\"iv\":\"FRESHIV==\"}}}}");
+    QVERIFY(writeTextFile(legacyConfigDir + QStringLiteral("/settings.json"),
+                          legacyPayload));
+    QVERIFY(writeTextFile(roamingConfigDir + QStringLiteral("/settings.json"),
+                          freshPayload));
+
+    QVERIFY(Margin::Paths::migrateItem(
+        legacyConfigDir + QStringLiteral("/settings.json"),
+        roamingConfigDir + QStringLiteral("/settings.json")));
+
+    QCOMPARE(readTextFile(roamingConfigDir
+                          + QStringLiteral("/settings.json")),
+             freshPayload);
 }
 
 void TestPathsMigrate::migratesDirectoryRecursive() {
