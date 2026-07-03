@@ -23,6 +23,13 @@
 !include "MUI2.nsh"
 !include "LogicLib.nsh"
 
+; LZMA solid compression: treats all installed files as a single stream,
+; typically 30-50% smaller than the default zlib on Qt-heavy payloads
+; (many similar DLLs compress very well together). Trade-off: slower
+; self-extraction at install time (~1-3s extra on cold cache), no impact
+; on runtime memory or installed size.
+SetCompressor /SOLID lzma
+
 ;--- Constants (injected by configure_file) -------------------------------
 !define APP_NAME "Margin"
 !define APP_FULL_NAME "Margin — 息间"

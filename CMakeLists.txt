@@ -9,6 +9,21 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Link-Time Optimization (whole-program codegen) for Release builds. CMake's
+# stock INTERPROCEDURAL_OPTIMIZATION flag maps to /GL + /LTCG on MSVC and
+# -flto on gcc/clang. Typically shrinks Margin.exe + plugin DLLs by 5-15%
+# with zero source changes. Release-only because LTO noticeably slows the
+# edit-compile cycle in Debug. check_ipo_supported() guards against older
+# toolchains; if unsupported we silently skip rather than fail the build.
+include(CheckIPOSupported)
+check_ipo_supported(RESULT _margin_lto_supported OUTPUT _margin_lto_reason)
+if(_margin_lto_supported)
+    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE ON)
+    message(STATUS "LTO: enabled for Release builds")
+else()
+    message(STATUS "LTO: not supported (${_margin_lto_reason})")
+endif()
+
 # Per-build stamp baked into Margin.exe VERSIONINFO FileVersion (right-click →
 # Properties → Details) so each build is self-differentiating without manual
 # version bumps. Local time (dev-machine perspective). Re-evaluated at every
@@ -214,7 +229,10 @@ if(WIN32)
                     \${_qmldir_args}
                     --no-translations
                     --no-system-d3d-compiler
+                    --no-system-dxc-compiler
                     --no-opengl-sw
+                    --no-ffmpeg
+                    --no-compiler-runtime
                     --release
                     \"\${CMAKE_INSTALL_PREFIX}/Margin.exe\"
             RESULT_VARIABLE _wdq_rc)

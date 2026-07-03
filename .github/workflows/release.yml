@@ -239,6 +239,17 @@ jobs:
             2. 点击 **"仍要运行"**
             3. 之后正常安装到 `%LOCALAPPDATA%\Margin\`(无需管理员权限)
 
+            ## 运行依赖 / Runtime Dependencies
+
+            Margin 依赖 Microsoft Visual C++ 2015-2022 Redistributable (x64)。Windows 10 1809+
+            通常已预装;若启动时报缺 `VCRUNTIME140.dll` / `MSVCP140.dll`,请从微软官网下载安装:
+            [vc_redist.x64.exe](https://aka.ms/vs/17/release/vc_redist.x64.exe)(约 25 MB)。
+
+            Margin requires the Microsoft Visual C++ 2015-2022 Redistributable (x64). It is
+            typically pre-installed on Windows 10 1809+. If launching reports missing
+            `VCRUNTIME140.dll` / `MSVCP140.dll`, install it from Microsoft:
+            [vc_redist.x64.exe](https://aka.ms/vs/17/release/vc_redist.x64.exe)(~25 MB).
+
             ## 校验
 
             安装完成后,`Margin.exe` → 右键属性 → 详细信息应显示:
