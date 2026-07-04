@@ -40,7 +40,7 @@ class TestDashboardShell : public QObject {
         std::unique_ptr<QQmlApplicationEngine>       engine;
     };
 
-    EngineAndRegistry makeEngine(const char* version = "9.9.9-test") {
+    EngineAndRegistry makeEngine(const char* fileVersion = "9.9.9-test") {
         EngineAndRegistry out;
         out.registry = std::make_unique<Margin::DashboardTabRegistry>();
         out.registry->addTab({
@@ -53,10 +53,12 @@ class TestDashboardShell : public QObject {
         out.registry->sortByOrder();
 
         out.engine = std::make_unique<QQmlApplicationEngine>();
-        if (version) {
+        // StatusBar 现在绑定 marginFileVersion(与 .exe FileVersion 同源),不再读 marginVersion
+        // (host API 版本,语义分离)。注入 fileVersion 让 StatusBar 显示测试值。
+        if (fileVersion) {
             out.engine->rootContext()->setContextProperty(
-                QStringLiteral("marginVersion"),
-                QString::fromLatin1(version));
+                QStringLiteral("marginFileVersion"),
+                QString::fromLatin1(fileVersion));
         }
         out.engine->rootContext()->setContextProperty(
             QStringLiteral("dashboardTabs"), out.registry.get());
@@ -109,16 +111,17 @@ void TestDashboardShell::loadsWithInjectedVersion() {
 
     // M4-C11 split the old single status Text into version + dot + mode +
     // duration atoms. The version Text carries the `statusBarVersion`
-    // objectName; verify the injected version string rendered there.
+    // objectName; verify the injected file-version string rendered there.
+    // (No "v" prefix — file-version is a build timestamp, not semver.)
     QObject* versionText = findByName(statusBar, QStringLiteral("statusBarVersion"));
     QVERIFY2(versionText, "status bar must expose a version Text (objectName=statusBarVersion)");
     const QString versionString = versionText->property("text").toString();
-    QVERIFY2(versionString.contains(QStringLiteral("v9.9.9-test")),
+    QVERIFY2(versionString.contains(QStringLiteral("9.9.9-test")),
              qPrintable(QStringLiteral("version text was: %1").arg(versionString)));
 }
 
 void TestDashboardShell::fallsBackWhenVersionMissing() {
-    auto er = makeEngine(nullptr);  // no marginVersion context property
+    auto er = makeEngine(nullptr);  // no marginFileVersion context property
     er.engine->load(shellUrl());
 
     QVERIFY(!er.engine->rootObjects().isEmpty());

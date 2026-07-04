@@ -38,4 +38,10 @@ target_link_libraries(margin_plugin_api PUBLIC Qt6::Core)
 target_compile_definitions(margin_plugin_api PUBLIC
     MARGIN_VERSION="${CMAKE_PROJECT_VERSION}"
     MARGIN_ABI_VERSION="0.2.0"
+    # 与 Windows .rc 的 ProductVersion/FileVersion 字段保持同源,供 QML 关于页/状态栏展示。
+    # 与 MARGIN_VERSION 语义分离:后者是 Host API 版本,被插件加载器的 min_host_version 协商使用。
+    # 同一 CMake 变量同时流入此处的编译宏与 version.rc.in 的 StringFileInfo 字符串字段,
+    # 因此 UI 显示与 Explorer → Properties → Details 字面一致(无二次格式化)。
+    MARGIN_PRODUCT_VERSION="${MARGIN_RELEASE_VERSION}"
+    MARGIN_FILE_VERSION="${MARGIN_FILEVERSION_DISPLAY}"
 )

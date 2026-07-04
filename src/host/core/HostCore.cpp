@@ -214,6 +214,12 @@ bool HostCore::bootstrap() {
     // TabBar + StackLayout can render host and plugin tabs through one path.
     m_engine->rootContext()->setContextProperty(
         QStringLiteral("marginVersion"), QString::fromLatin1(MARGIN_VERSION));
+    // 与 Margin.exe Windows 资源 ProductVersion/FileVersion 同源,供 SettingsAboutPage
+    // 与 StatusBar 展示。marginVersion 仍是 host API 版本(被插件加载器使用),三者各司其职。
+    m_engine->rootContext()->setContextProperty(
+        QStringLiteral("marginProductVersion"), QString::fromLatin1(MARGIN_PRODUCT_VERSION));
+    m_engine->rootContext()->setContextProperty(
+        QStringLiteral("marginFileVersion"), QString::fromLatin1(MARGIN_FILE_VERSION));
     // M5-C4d: log file path surfaced on Settings → About → Diagnostics
     // so users can find the log without guessing based on Paths::logs().
     m_engine->rootContext()->setContextProperty(

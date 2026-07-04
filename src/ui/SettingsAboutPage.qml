@@ -1,7 +1,9 @@
 // SettingsAboutPage — host "About" settings page (docs/06 §4.6, M5-C4d).
 // Mirrors AboutDialog's content (app icon + version + description + license).
-// `marginVersion` context property is already injected by HostCore for
-// StatusBar.qml; we reuse it here.
+// Version 字符串来自两个上下文属性,均与 Margin.exe Windows 资源字段同源:
+//   - marginProductVersion → ProductVersion (release tag, e.g. "0.1.0" / "0.1.1-rc1")
+//   - marginFileVersion    → FileVersion    (build timestamp YYYY.MM.DD.HH.MM)
+// 二者由 HostCore 注入,dev shell 缺省时退化到 "0.0.0-dev"。
 //
 // Links to the project repository + log file path are shown as read-only
 // text (no Clickable link atom yet — v1.1 will add MLowLink with proper
@@ -43,9 +45,15 @@ Rectangle {
                 }
 
                 Text {
-                    text: qsTr("Version %1").arg(
-                        (typeof marginVersion !== "undefined") ? marginVersion
-                                                                : "0.0.0-dev")
+                    text: {
+                        const pv = (typeof marginProductVersion !== "undefined")
+                                   ? marginProductVersion : "0.0.0-dev"
+                        const fv = (typeof marginFileVersion !== "undefined")
+                                   ? marginFileVersion : ""
+                        return fv !== ""
+                            ? qsTr("Version %1 (build %2)").arg(pv).arg(fv)
+                            : qsTr("Version %1").arg(pv)
+                    }
                     color: Theme.fgSecondary
                     font.pixelSize: Theme.textSm
                     font.family: Theme.fontMono

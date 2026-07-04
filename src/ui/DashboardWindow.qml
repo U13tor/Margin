@@ -80,10 +80,10 @@ Window {
         StatusBar {
             id: statusBar
             width: parent.width
-            // marginVersion context property is injected by the host; fall back
-            // to a dev marker if the shell is loaded without it (e.g. tests).
-            version: (typeof marginVersion !== "undefined") ? marginVersion
-                                                            : "0.0.0-dev"
+            // 状态栏改展示文件版本(构建时间戳),与 Margin.exe Properties → Details → FileVersion
+            // 同源。marginFileVersion 由 HostCore 注入;dev shell 没注入时 fallback 到 dev marker。
+            version: (typeof marginFileVersion !== "undefined") ? marginFileVersion
+                                                                : "0.0.0-dev"
         }
     }
 

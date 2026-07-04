@@ -1,5 +1,7 @@
 // StatusBar — bottom status strip (docs/06 §4.1, height 24, --text-xs).
-// Layout: [vX.Y.Z · ● mode · duration]   ...   [GitHub][About][设置]
+// Layout: [<file-version> · ● mode · duration]   ...   [GitHub][About][设置]
+// File-version = Margin.exe Windows FileVersion 字符串(构建时间戳 YYYY.MM.DD.HH.MM),
+// 与 Explorer → Properties → Details 字面一致;无 "v" 前缀(非 semver)。
 //
 // mode/duration are driven by the rhythm plugin context property (state,
 // remainingSeconds, workMinutes, breakMinutes Q_PROPERTYs). typeof guard
@@ -82,7 +84,7 @@ Rectangle {
 
         Text {
             objectName: "statusBarVersion"
-            text: "v" + root.version
+            text: root.version
             color: Theme.fgSecondary
             font.pixelSize: Theme.textXs
             anchors.verticalCenter: parent.verticalCenter
