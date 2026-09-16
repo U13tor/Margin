@@ -57,8 +57,8 @@
    - Windows:DPAPI `CryptProtectData`（绑定当前 Windows 账户）
    - macOS:Keychain Services(v1.1 版本提供）
 
-3. **加载官方插件**:Hello、Aura Locker、Screen Time 与 Rhythm。首次
-   加载会弹出权限申请对话框，请逐项授权。
+3. **加载官方插件**:Aura Locker、Screen Time、Rhythm 与 LlamaPet。首次
+   加载会弹出权限申请对话框，请逐项授权（LlamaPet 申请 `localhost-http` 本地回环权限）。
 
 4. **显示系统托盘图标**，共三种状态：
    - **Normal**（紫色）：空闲
@@ -69,7 +69,7 @@
 
 ## 主面板
 
-点击托盘图标打开主面板，共包含 4 个标签页：
+点击托盘图标打开主面板，共包含 5 个标签页：
 
 | 标签页 | 内容 |
 |---|---|
@@ -77,6 +77,7 @@
 | **Aura** | 配对蓝牙设备、RSSI 阈值、away 延迟、cooldown |
 | **Screen Time** | 今日、本周或本月应用时长、分类与导出 |
 | **Rhythm** | 番茄钟进度、推迟次数与休息时长 |
+| **LlamaPet** | 本地推理遥测 GeekHUD、GPU 显存/利用率、60点走势曲线、SLOT 槽位明细与 KV 释放 |
 
 设置中心（Settings）为独立窗口，各插件设有专属配置页，Host 提供语言、主题、开机自启等通用设置。
 
@@ -84,7 +85,7 @@
 
 ## Aura Locker 配对指引
 
-Aura Locker 是 Phase 1 中唯一需要用户配置才能生效的插件。配置步骤如下：
+Aura Locker 需要用户配对蓝牙设备才能生效。配置步骤如下：
 
 1. 打开主面板，切换到"Aura"标签页。
 2. 点击"配对设备"，开始扫描附近的 BLE 设备。
@@ -100,6 +101,24 @@ Aura Locker 是 Phase 1 中唯一需要用户配置才能生效的插件。配�
 - `cooldown_seconds`:30–300 秒（下限用于防止锁屏与解锁反复抖动）
 
 即使直接编辑 `settings.json` 也无法绕过这些下限，Host 在加载时会执行数值钳制（clamp)。
+
+---
+
+## LlamaPet 快速配置指引
+
+LlamaPet 提供本地大模型推理与 GPU 实时遥测，默认开箱即用：
+
+1. **默认端点**：出厂预设端点为 `http://127.0.0.1:1802`（兼容常见 llama-server 或本地聚合网关端口）。如果使用原生 llama.cpp（默认端口 8080）或 Ollama（默认端口 11434），可在「设置中心 → LlamaPet」中随时修改。
+2. **明文配置自动迁移**：若您此前使用过独立版 LlamaPet，Margin 首次加载时会自动读取 `%APPDATA%\LlamaPet\config\config.toml`，无缝导入旧版端点与配置，并将 API Key 自动迁移至系统密钥环（DPAPI）加密保存。
+3. **托盘快捷操作**：
+   - 切换桌宠悬浮窗显隐
+   - MiniPet (96×96 点阵羊驼) ↔ Dock (260×50 仪表盘) 模式切换
+   - 窗口置顶、鼠标穿透、贴边自动半隐藏
+   - 清空空闲 KV 缓存
+   - 复制重启命令到剪贴板
+4. **快捷键**：全局热键 `Ctrl+Alt+P` 可在任意应用前台瞬间呼出 / 隐藏 LlamaPet 桌宠悬浮窗。
+
+> 详尽的服务启动推荐参数、KV 缓存优化与进阶排错，请参阅 [10-llamapet.md](10-llamapet.md)。
 
 ---
 

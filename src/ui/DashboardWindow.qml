@@ -26,8 +26,44 @@ Window {
     title: qsTr("Margin · 息间")
 
     property int currentTab: 0
+    property string currentTabId: "overview"
 
     readonly property int _tabCount: dashboardTabs ? dashboardTabs.tabs.length : 0
+
+    onCurrentTabChanged: {
+        if (dashboardTabs && dashboardTabs.tabs && currentTab >= 0 && currentTab < dashboardTabs.tabs.length) {
+            const tab = dashboardTabs.tabs[currentTab]
+            if (tab && tab.id) {
+                root.currentTabId = tab.id
+            }
+        }
+    }
+
+    Connections {
+        target: dashboardTabs
+        function onTabsChanged() {
+            Qt.callLater(function() {
+                if (!dashboardTabs || !dashboardTabs.tabs || dashboardTabs.tabs.length === 0) return
+                const tabs = dashboardTabs.tabs
+                let targetIndex = -1
+                for (let i = 0; i < tabs.length; i++) {
+                    if (tabs[i].id === root.currentTabId) {
+                        targetIndex = i
+                        break
+                    }
+                }
+                if (targetIndex >= 0) {
+                    root.currentTab = targetIndex
+                    contentArea.currentIndex = targetIndex
+                } else if (root.currentTab < tabs.length) {
+                    contentArea.currentIndex = root.currentTab
+                } else {
+                    root.currentTab = 0
+                    contentArea.currentIndex = 0
+                }
+            })
+        }
+    }
 
     // Invoked from the host (SystemTray::openDashboardRequested). Show + focus.
     function openDashboard() {
@@ -75,6 +111,12 @@ Window {
                     height: parent.height
                 }
             }
+        }
+
+        Binding {
+            target: contentArea
+            property: "currentIndex"
+            value: root.currentTab
         }
 
         StatusBar {

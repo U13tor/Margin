@@ -1,0 +1,40 @@
+{
+  "manifest_version": 1,
+  "id": "llamapet",
+  "name": "LlamaPet",
+  "version": "0.1.0",
+  "description": "Local LLM & NVIDIA GPU Telemetry Pet (llama.cpp / Ollama / OpenAI compatible)",
+  "author": "Margin Team",
+  "min_host_version": "0.1.0",
+  "abi_version": "0.2.0",
+  "entry_point": "margin_plugin_entry",
+  "priority": 100,
+  "permissions": [
+    "localhost-http"
+  ],
+  "settings_keys": [
+    "plugins.llamapet.endpointUrl",
+    "plugins.llamapet.apiKey",
+    "plugins.llamapet.engine",
+    "plugins.llamapet.pollIntervalMs",
+    "plugins.llamapet.vramDanger",
+    "plugins.llamapet.vramWarn",
+    "plugins.llamapet.hotkey",
+    "plugins.llamapet.defaultForm",
+    "plugins.llamapet.dockPos"
+  ],
+  "encrypted_settings": [
+    "plugins.llamapet.apiKey"
+  ],
+  "events": {
+    "publish": [
+      "margin.llamapet.telemetry"
+    ],
+    "subscribe": []
+  },
+  "ui_contributions": [
+    "TrayMenuContributor",
+    "DashboardTabContributor",
+    "SettingsPageContributor"
+  ]
+}

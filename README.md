@@ -1,11 +1,23 @@
 <p align="center">
-  <strong>English</strong> | <a href="README_ZH.md">中文</a>
+  <strong>简体中文</strong> | <a href="README_EN.md">English</a>
 </p>
 
-# Margin
+# Margin / 息间
 
 <p align="center">
   <img src="docs/assets/tray.svg" width="72" alt="Margin">
+</p>
+
+<p align="center">
+  光标留白，是"息间"；托盘一隅，是"Margin"。<br>
+  余白养神，边界护心。
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-LGPL--3.0--or--later-blue.svg" alt="License"></a>
+  <img src="https://img.shields.io/badge/platform-Windows%2010%201809+-0078D4.svg?logo=windows" alt="Platform">
+  <img src="https://img.shields.io/badge/Qt-6.7+-41CD52.svg?logo=qt&logoColor=white" alt="Qt 6">
+  <img src="https://img.shields.io/badge/network-ZERO-critical.svg" alt="Zero Network">
 </p>
 
 <p align="center">
@@ -14,111 +26,112 @@
 </p>
 
 <p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-LGPL--3.0--or--later-blue.svg" alt="License"></a>
-  <img src="https://img.shields.io/badge/platform-Windows%2010%201809+-0078D4.svg?logo=windows" alt="Platform">
-  <img src="https://img.shields.io/badge/Qt-6.7+-41CD52.svg?logo=qt&logoColor=white" alt="Qt 6">
-  <img src="https://img.shields.io/badge/network-ZERO-critical.svg" alt="Zero Network">
-  <img src="https://img.shields.io/badge/i18n-EN%20%7C%20中文-8A2BE2.svg" alt="i18n">
-</p>
-
-<p align="center">
-  <img src="docs/assets/dashboard_home.png" width="780" alt="Margin Dashboard">
+  <img src="docs/assets/dashboard_home.png" width="780" alt="Margin 主面板首页">
 </p>
 
 ---
 
-A lightweight digital wellness tool for developers and power users, living quietly in your system tray. Built on a **Host + Plugin + EventBus** architecture, Margin runs **entirely offline — zero network access, zero telemetry, fully open source**. The UI supports both **English and Chinese** with in-app language switching.
+常驻系统托盘的轻量级数字健康工具，专为开发者和高频电脑使用者设计。采用 Host + Plugin + EventBus 插件化架构，**完全本地运行、零网络访问、开源透明**。
 
-## Core Features
+## 核心特性
 
-### 🔒 Aura Locker — Walk Away, Auto-Lock
+### 🔒 Aura Locker — 离座即锁屏
 
-Bluetooth RSSI-based proximity detection — no GATT connection, no polling. When your paired device (phone, watch, or headphones) moves ~5 meters away for 30+ seconds, Margin locks your workstation automatically. A 60-second cooldown prevents repeated locks when you return. **Invisible protection that never interrupts your flow.**
+基于蓝牙 RSSI 邻近检测，无需 GATT 连接。配对设备（手表、手环等主动蓝牙广播设备）离开约 5 米超过 30 秒后自动锁屏，回座后 60 秒冷却期内不重复触发。**无感知守护，不打断工作节奏。**
 
-### 📊 Screen Time Tracker — Silent Usage Logging
+### 📊 Screen Time Tracker — 静默时长统计
 
-Passively captures foreground app switches via OS events (`SetWinEventHook` on Windows) — no polling, not a keylogger. Sensitive fields (e.g. window titles) are encrypted with **AES-256-GCM**, keys stored in the OS keyring (Windows DPAPI / macOS Keychain). Privacy and analytics, without compromise.
+通过系统事件被动接收前台应用切换，非轮询、非键盘记录器。敏感数据（如窗口标题）采用 **AES-256-GCM** 加密存储，密钥托管于系统密钥环（Windows DPAPI / macOS Keychain）。统计分析与隐私保护兼得。
 
-### 🍅 Rhythm & Health — Pomodoro + Guided Stretch Breaks
+### 🍅 Rhythm & Health — 番茄钟 + 颈椎操引导
 
-Classic Pomodoro timer (25 min work / 5 min rest) with Aura integration: auto-pauses when you step away, resumes when you return. During breaks, a guided neck-stretch window appears with **8 exercise routines**, countdown timers, and step-by-step instructions to help you recharge between sessions.
+经典番茄工作法（25 分钟工作 / 5 分钟休息），与 Aura 联动：离座自动暂停，回座继续。休息时弹出颈椎操引导窗口，提供 **8 节动作指引**与倒计时，帮你在间隙中恢复精力。
 
-> 📸 See detailed screenshots in [docs/02-install.md](docs/02-install.md).
+### 🦙 LlamaPet — 本地大模型推理遥测与显卡桌宠
 
----
+面向本地 LLM 开发者与端侧推理玩家的实时遥测桌宠：
+- **多后端支持**：深度对接 llama.cpp（原生 `/slots` 与 `/health`）、Ollama 及 OpenAI API 兼容端点；
+- **NVIDIA GPU 硬件遥测**：显存占用、核心利用率、实时功耗与温度，支持 `nvml.dll` 驱动级直连，无驱动环境优雅降级至 `nvidia-smi`；
+- **情绪驱动桌宠**：提供 MiniPet (96×96) 与 Dock 仪表盘 (260×50) 双形态，7 态像素羊驼点阵动画实时反映推理负载；支持 ≤20px 边缘磁吸吸附、Peek 3s 自动半隐藏、Win32 鼠标穿透以及全局呼出快捷键 `Ctrl+Alt+P`；
+- **GeekHUD 仪表盘**：集成 60 采样点 VRAM/TPS 双轨实时走势 Canvas 曲线、SLOT 槽位明细网格、KV 缓存命中分析及一键清空空闲 KV 缓存。
 
-## Privacy Commitment
-
-- **Zero Network** — No heartbeat, no update checks, no crash reports. Verify with Wireshark
-- **Zero Telemetry** — No usage data collected, all logs stay local
-- **No Account Required** — No login, no tokens, works out of the box
-- **End-to-End Encryption** — Sensitive fields encrypted with AES-256-GCM, keys remain in the OS keyring
-- **Your Data, Your Rules** — Export anytime (JSON / CSV) or delete everything permanently
-
-> Full privacy design and threat model: [docs/07-privacy-security.md](docs/07-privacy-security.md).
+> 📸 各功能详细截图见 [docs/02-install.md](docs/02-install.md) 与 [docs/10-llamapet.md](docs/10-llamapet.md)。
 
 ---
 
-## Quick Start
+## 隐私承诺
 
-**Pre-built binaries** (recommended): Head to [GitHub Releases](https://github.com/U13tor/Margin/releases). Windows users can choose the `.exe` installer (no admin required) or the portable zip (extract and run). See [docs/02-install.md](docs/02-install.md).
+- **零网络** — 无后台心跳、无更新检查、无崩溃上报。LlamaPet 插件仅声明 `localhost-http` 本地回环权限（受代码级 `LoopbackGuard` 拦截，杜绝任何公网请求），可用 Wireshark 验证
+- **零遥测** — 不收集任何使用数据，所有日志仅本地保存
+- **无需账号** — 无登录、无 Token，开箱即用
+- **端到端加密** — 敏感字段（包括模型 API Key）AES-256-GCM 加密，密钥留在系统密钥环
+- **数据归你** — 支持 JSON / CSV 一键导出或彻底删除
 
-**Build from source**: Requires Qt 6.7+, CMake 3.21+, vcpkg, and Visual Studio 2022. See [docs/03-build-from-source.md](docs/03-build-from-source.md).
+> 详细隐私方案与威胁模型见 [docs/07-privacy-security.md](docs/07-privacy-security.md)。
 
-| | Spec |
+---
+
+## 🚀 快速开始
+
+**安装预编译版本**（推荐）：前往 [GitHub Releases](https://github.com/U13tor/Margin/releases) 下载。Windows 用户可选 `.exe` 安装包（免管理员）或绿色版（解压即用）。详见 [docs/02-install.md](docs/02-install.md)。
+
+**从源码构建**：需要 Qt 6.7+、CMake 3.21+、vcpkg、Visual Studio 2022。详见 [docs/03-build-from-source.md](docs/03-build-from-source.md)。
+
+| 维度 | 规格 |
 |---|---|
-| **System** | Windows 10 1809+ (x64); macOS / Linux — see Roadmap |
-| **Footprint** | Install < 80 MB · RAM < 80 MB · Idle CPU < 1% |
-| **Privileges** | Per-user install, no admin required |
+| **系统** | Windows 10 1809+ (x64)；macOS / Linux 支持见路线图 |
+| **资源** | 安装 < 80 MB · 内存 < 80 MB · CPU 空闲 < 1% |
+| **权限** | 用户级安装，无需管理员 |
 
 ---
 
-## Roadmap
+## 路线图 / Roadmap
 
-### v1.0 — Current Release ✅
+### v1.0 — 当前版本 ✅
 
-Windows MVP shipped. All three core plugins (Aura Locker / Screen Time / Rhythm & Health) are fully functional, with a stable plugin architecture and permission model.
+Windows MVP 已发布。四大官方核心插件（Aura Locker / Screen Time / Rhythm & Health / LlamaPet）功能完整上线，插件化架构与权限模型稳定运行。
 
-### v1.1 — Cross-Platform Expansion
+### v1.1 — 跨平台扩展
 
-- 🍎 **macOS Backend** — Full adaptation of Bluetooth, screen time, and Pomodoro modules for macOS
-- 🐧 **Linux Support** — Bluetooth backend via BlueZ / D-Bus
-- 📤 **Enhanced Data Export** — Visual reports, weekly / monthly aggregation
-- 🌐 **i18n Improvements** — Complete English localization, community translation support
+- 🍎 **macOS 后端适配** — 蓝牙、屏幕时间、番茄钟全模块适配 macOS
+- 🐧 **Linux 支持** — 基于 BlueZ / D-Bus 的蓝牙后端
+- 📤 **数据导出增强** — 可视化报表导出、周报 / 月报聚合
+- 🌐 **i18n 完善** — 完整英文本地化，社区翻译支持
 
-### v2.0 — Future Vision
+### v2.0 — 远期展望
 
-- 🧩 **Plugin Marketplace** — Open third-party plugin distribution and management
-- 🤖 **Smart Fatigue Detection** — Explore on-device models for eye strain and posture analysis (maintaining the zero-network promise)
-- 📱 **Mobile Companion** — LAN-based phone pairing for syncing health data and reminders
+- 🧩 **插件市场** — 开放第三方插件分发与管理，拓展功能生态
+- 🤖 **智能疲劳检测** — 探索基于本地模型的用眼疲劳与姿态分析（保持零网络承诺）
+- 📱 **移动端联动** — 通过局域网与手机配对，同步健康数据与提醒
 
-> The roadmap evolves with community feedback — share your ideas on [GitHub Issues](https://github.com/U13tor/Margin/issues).
+> 路线图会根据社区反馈持续调整，欢迎在 [GitHub Issues](https://github.com/U13tor/Margin/issues) 提出你想看到的功能。
 
 ---
 
-## Documentation
+## 文档导航
 
-| Document | Topic |
+| 文档 | 主题 |
 |---|---|
-| [01-architecture.md](docs/01-architecture.md) | Architecture, startup & shutdown sequences |
-| [02-install.md](docs/02-install.md) | Installation & first run |
-| [03-build-from-source.md](docs/03-build-from-source.md) | Building from source |
-| [04-plugin-spec.md](docs/04-plugin-spec.md) | Plugin ABI, manifest & permission model |
-| [05-host-services.md](docs/05-host-services.md) | Host Services API reference |
-| [06-platform-support.md](docs/06-platform-support.md) | Platform support matrix |
-| [07-privacy-security.md](docs/07-privacy-security.md) | Privacy, encryption & threat model |
-| [09-testing.md](docs/09-testing.md) | Testing strategy & local verification |
+| [01-architecture.md](docs/01-architecture.md) | 整体架构与启动、退出时序 |
+| [02-install.md](docs/02-install.md) | 安装与首次运行 |
+| [03-build-from-source.md](docs/03-build-from-source.md) | 从源码构建 |
+| [04-plugin-spec.md](docs/04-plugin-spec.md) | 插件 ABI、manifest 与权限模型 |
+| [05-host-services.md](docs/05-host-services.md) | Host 服务 API 参考 |
+| [06-platform-support.md](docs/06-platform-support.md) | 平台支持矩阵 |
+| [07-privacy-security.md](docs/07-privacy-security.md) | 隐私承诺、加密方案与威胁模型 |
+| [09-testing.md](docs/09-testing.md) | 测试策略与本地验证 |
+| [10-llamapet.md](docs/10-llamapet.md) | LlamaPet 本地大模型遥测与显卡桌宠使用指南 |
 
 ---
 
-## Contributing & Contact
+## 贡献 & 联系
 
-Pull requests, issues, and all forms of feedback are welcome!
+欢迎 Pull Request、Issue 或任何形式的反馈！
 
-- Contributing guide: [CONTRIBUTING.md](docs/CONTRIBUTING.md)
-- Bug reports & suggestions: [GitHub Issues](https://github.com/U13tor/Margin/issues)
-- Repository: [github.com/U13tor/Margin](https://github.com/U13tor/Margin)
+- 贡献指南：[CONTRIBUTING.md](docs/CONTRIBUTING.md)
+- 问题反馈：[GitHub Issues](https://github.com/U13tor/Margin/issues)
+- 仓库地址：[github.com/U13tor/Margin](https://github.com/U13tor/Margin)
 
-## License
+## 📄 License
 
-[LGPL-3.0-or-later](LICENSE) — Every `.h` and `.cpp` file includes `SPDX-License-Identifier: LGPL-3.0-or-later`.
+[LGPL-3.0-or-later](LICENSE) — 每个源文件头均含 `SPDX-License-Identifier: LGPL-3.0-or-later`。

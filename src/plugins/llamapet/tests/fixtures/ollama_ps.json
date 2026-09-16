@@ -1,0 +1,22 @@
+{
+  "models": [
+    {
+      "name": "qwen3:14b",
+      "model": "qwen3:14b",
+      "size": 8987427253,
+      "digest": "a1b2c3d4e5f60718293a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5",
+      "modified_at": "2026-09-10T08:00:00.000000000Z",
+      "expires_at": "2026-09-14T12:00:00.000000000Z",
+      "size_vram": 8954829312
+    },
+    {
+      "name": "nomic-embed-text:latest",
+      "model": "nomic-embed-text:latest",
+      "size": 274302450,
+      "digest": "0f9e8d7c6b5a4321fedcba9876543210fedcba9876543210fedcba9876543210",
+      "modified_at": "2026-09-08T10:30:00.000000000Z",
+      "expires_at": "2026-09-14T11:00:00.000000000Z",
+      "size_vram": 271044608
+    }
+  ]
+}

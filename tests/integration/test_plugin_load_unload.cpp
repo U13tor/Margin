@@ -10,6 +10,7 @@
 
 #include <QJsonObject>
 #include <QObject>
+#include <QSignalSpy>
 #include <QString>
 #include <QStringList>
 #include <QTest>
@@ -43,12 +44,13 @@ public:
     void log(Level, const QString&, const QString&) override {}
 };
 
-class NullSettings : public Margin::Settings {
+class MemorySettings : public Margin::Settings {
 public:
-    QVariant get(const QString&, const QVariant& dv) const override { return dv; }
-    void set(const QString&, const QVariant&) override {}
+    QHash<QString, QVariant> store;
+    QVariant get(const QString& k, const QVariant& dv) const override { return store.value(k, dv); }
+    void set(const QString& k, const QVariant& v) override { store[k] = v; }
     void onChange(const QString&, std::function<void(const QVariant&)>) override {}
-    void remove(const QString&) override {}
+    void remove(const QString& k) override { store.remove(k); }
     void registerEncryptedKeys(const QSet<QString>&) override {}
 };
 
@@ -63,7 +65,7 @@ public:
 struct Harness {
     NullLogger          logger;
     std::unique_ptr<EventBus> bus;
-    NullSettings        settings;
+    MemorySettings      settings;
     NullTray            tray;
     std::unique_ptr<CryptoServicePool> pool;
     std::unique_ptr<PluginManager> pm;
@@ -86,6 +88,11 @@ private slots:
     void testMissingDirIsNoOp();
     void testLoadOrderFollowsPriority();
     void testSortTiebreakById();
+    void testDynamicUnloadOnePlugin();
+    void testDynamicReloadOnePlugin();
+    void testSetPluginEnabledPersistence();
+    void testPluginManagerExposedList();
+    void testDisabledPluginSkippedOnLoadAll();
 };
 
 void TestPluginLoadUnload::testLoadReturnsInstance() {
@@ -168,6 +175,110 @@ void TestPluginLoadUnload::testSortTiebreakById() {
     QCOMPARE(v[0].id, QStringLiteral("alpha"));
     QCOMPARE(v[1].id, QStringLiteral("bravo"));
     QCOMPARE(v[2].id, QStringLiteral("charlie"));
+}
+
+void TestPluginLoadUnload::testDynamicUnloadOnePlugin() {
+    Harness h;
+    h.pm->loadAll({QStringLiteral(MARGIN_TEST_PLUGINS_DIR)});
+    QVERIFY(h.pm->isPluginLoaded(QStringLiteral("fake")));
+    QVERIFY(h.pm->isPluginLoaded(QStringLiteral("zlast")));
+
+    int unloadedEventCount = 0;
+    h.bus->subscribe(QStringLiteral("margin.fake.unloaded"),
+                     [&unloadedEventCount](const QJsonObject&) { ++unloadedEventCount; });
+
+    QSignalSpy spyUnloaded(h.pm.get(), &PluginManager::pluginUnloaded);
+    QSignalSpy spyChanged(h.pm.get(), &PluginManager::pluginsChanged);
+
+    bool ok = h.pm->unloadPlugin(QStringLiteral("fake"));
+    QVERIFY(ok);
+    QTRY_COMPARE_WITH_TIMEOUT(unloadedEventCount, 1, 2000);
+    QCOMPARE(spyUnloaded.count(), 1);
+    QCOMPARE(spyUnloaded.takeFirst().at(0).toString(), QStringLiteral("fake"));
+    QCOMPARE(spyChanged.count(), 1);
+
+    QVERIFY(!h.pm->isPluginLoaded(QStringLiteral("fake")));
+    QVERIFY(h.pm->plugin("fake") == nullptr);
+    // Ensure other plugins remain loaded
+    QVERIFY(h.pm->isPluginLoaded(QStringLiteral("zlast")));
+    QVERIFY(h.pm->plugin("zlast") != nullptr);
+}
+
+void TestPluginLoadUnload::testDynamicReloadOnePlugin() {
+    Harness h;
+    h.pm->loadAll({QStringLiteral(MARGIN_TEST_PLUGINS_DIR)});
+    QVERIFY(h.pm->isPluginLoaded(QStringLiteral("fake")));
+
+    h.pm->unloadPlugin(QStringLiteral("fake"));
+    QVERIFY(!h.pm->isPluginLoaded(QStringLiteral("fake")));
+
+    int reloadedEventCount = 0;
+    h.bus->subscribe(QStringLiteral("margin.fake.loaded"),
+                     [&reloadedEventCount](const QJsonObject&) { ++reloadedEventCount; });
+
+    QSignalSpy spyLoaded(h.pm.get(), &PluginManager::pluginLoaded);
+    QSignalSpy spyChanged(h.pm.get(), &PluginManager::pluginsChanged);
+
+    bool ok = h.pm->loadPlugin(QStringLiteral("fake"));
+    QVERIFY(ok);
+    QTRY_COMPARE_WITH_TIMEOUT(reloadedEventCount, 1, 2000);
+    QCOMPARE(spyLoaded.count(), 1);
+    QCOMPARE(spyLoaded.takeFirst().at(0).toString(), QStringLiteral("fake"));
+    QCOMPARE(spyChanged.count(), 1);
+
+    QVERIFY(h.pm->isPluginLoaded(QStringLiteral("fake")));
+    QVERIFY(h.pm->plugin("fake") != nullptr);
+}
+
+void TestPluginLoadUnload::testSetPluginEnabledPersistence() {
+    Harness h;
+    h.pm->loadAll({QStringLiteral(MARGIN_TEST_PLUGINS_DIR)});
+    QVERIFY(h.pm->isPluginEnabled(QStringLiteral("fake")));
+    QVERIFY(h.pm->isPluginLoaded(QStringLiteral("fake")));
+
+    h.pm->setPluginEnabled(QStringLiteral("fake"), false);
+    QVERIFY(!h.pm->isPluginEnabled(QStringLiteral("fake")));
+    QVERIFY(!h.pm->isPluginLoaded(QStringLiteral("fake")));
+    QCOMPARE(h.settings.get(QStringLiteral("plugins.fake.enabled"), true).toBool(), false);
+
+    h.pm->setPluginEnabled(QStringLiteral("fake"), true);
+    QVERIFY(h.pm->isPluginEnabled(QStringLiteral("fake")));
+    QVERIFY(h.pm->isPluginLoaded(QStringLiteral("fake")));
+    QCOMPARE(h.settings.get(QStringLiteral("plugins.fake.enabled"), false).toBool(), true);
+}
+
+void TestPluginLoadUnload::testPluginManagerExposedList() {
+    Harness h;
+    h.pm->loadAll({QStringLiteral(MARGIN_TEST_PLUGINS_DIR)});
+    const QVariantList list = h.pm->pluginList();
+    QVERIFY(list.size() >= 2);
+
+    bool foundFake = false;
+    for (const auto& item : list) {
+        const QVariantMap map = item.toMap();
+        if (map.value(QStringLiteral("id")).toString() == QLatin1String("fake")) {
+            foundFake = true;
+            QCOMPARE(map.value(QStringLiteral("version")).toString(), QStringLiteral("0.1.0"));
+            QCOMPARE(map.value(QStringLiteral("isLoaded")).toBool(), true);
+            QCOMPARE(map.value(QStringLiteral("isEnabled")).toBool(), true);
+        }
+    }
+    QVERIFY(foundFake);
+}
+
+void TestPluginLoadUnload::testDisabledPluginSkippedOnLoadAll() {
+    Harness h;
+    h.settings.set(QStringLiteral("plugins.fake.enabled"), false);
+    h.pm->loadAll({QStringLiteral(MARGIN_TEST_PLUGINS_DIR)});
+
+    QVERIFY(!h.pm->isPluginLoaded(QStringLiteral("fake")));
+    QVERIFY(h.pm->plugin("fake") == nullptr);
+    QVERIFY(!h.pm->isPluginEnabled(QStringLiteral("fake")));
+
+    // Other non-disabled plugins still load
+    QVERIFY(h.pm->isPluginLoaded(QStringLiteral("zlast")));
+    QVERIFY(h.pm->plugin("zlast") != nullptr);
+    QVERIFY(h.pm->isPluginEnabled(QStringLiteral("zlast")));
 }
 
 QTEST_MAIN(TestPluginLoadUnload)

@@ -28,6 +28,28 @@ Window {
     color: Theme.bgElevated
     title: qsTr("Margin Settings")
 
+    property string currentPageId: "general"
+
+    Connections {
+        target: (typeof settingsRegistry !== "undefined") ? settingsRegistry : null
+        function onPagesChanged() {
+            Qt.callLater(function() {
+                if (typeof settingsRegistry === "undefined" || !settingsRegistry || !settingsRegistry.pages) return
+                const pages = settingsRegistry.pages
+                for (let i = 0; i < pages.length; i++) {
+                    if (pages[i].id === root.currentPageId) {
+                        sidebar.currentIndex = i
+                        contentStack.currentIndex = i
+                        return
+                    }
+                }
+                sidebar.currentIndex = 0
+                contentStack.currentIndex = 0
+                root.currentPageId = (pages.length > 0 && pages[0].id) ? pages[0].id : "general"
+            })
+        }
+    }
+
     // QML-side open helper. Tray signal goes through HostCore::openSettings()
     // (which calls show/raise/requestActivate on this Window directly); the
     // DashboardWindow Ctrl+, shortcut can also call this via settingsRoot.
@@ -41,6 +63,7 @@ Window {
     function openSettings(pageId) {
         if (pageId === undefined) pageId = ""
         if (pageId !== "" && typeof settingsRegistry !== "undefined" && settingsRegistry) {
+            root.currentPageId = pageId
             const pages = settingsRegistry.pages
             for (let i = 0; i < pages.length; i++) {
                 if (pages[i].id === pageId) {
@@ -76,6 +99,14 @@ Window {
             model: (typeof settingsRegistry !== "undefined" && settingsRegistry)
                    ? settingsRegistry.pages : []
             currentIndex: 0
+            onCurrentIndexChanged: {
+                if (typeof settingsRegistry !== "undefined" && settingsRegistry && settingsRegistry.pages) {
+                    const pages = settingsRegistry.pages
+                    if (currentIndex >= 0 && currentIndex < pages.length && pages[currentIndex].id) {
+                        root.currentPageId = pages[currentIndex].id
+                    }
+                }
+            }
             section.property: "section"
             section.delegate: Rectangle {
                 width: sidebar.width
@@ -102,7 +133,10 @@ Window {
                 width: sidebar.width
                 title: modelData.title
                 highlighted: ListView.view.currentIndex === index
-                onClicked: ListView.view.currentIndex = index
+                onClicked: {
+                    root.currentPageId = modelData.id
+                    ListView.view.currentIndex = index
+                }
             }
         }
 
@@ -119,6 +153,12 @@ Window {
             Layout.fillWidth: true
             Layout.fillHeight: true
             currentIndex: sidebar.currentIndex
+
+            Binding {
+                target: contentStack
+                property: "currentIndex"
+                value: sidebar.currentIndex
+            }
             Repeater {
                 model: (typeof settingsRegistry !== "undefined" && settingsRegistry)
                        ? settingsRegistry.pages : []

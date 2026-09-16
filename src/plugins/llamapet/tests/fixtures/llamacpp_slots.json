@@ -1,0 +1,46 @@
+[
+  {
+    "id": 0,
+    "task_id": 17,
+    "state": 3,
+    "n_ctx": 16384,
+    "n_past": 42,
+    "prompt_tokens": 24,
+    "cache_tokens": [1, 887, 330, 263, 8447, 29979, 1024, 310, 3681, 29892, 13, 13, 960, 29901, 411, 1502, 29892, 1576, 4998, 366],
+    "n_decoded": 18,
+    "speculative": false
+  },
+  {
+    "id": 1,
+    "task_id": 18,
+    "state": 3,
+    "n_ctx": 16384,
+    "n_past": 22,
+    "prompt_tokens": 20,
+    "cache_tokens": [],
+    "n_decoded": 2,
+    "speculative": false
+  },
+  {
+    "id": 2,
+    "task_id": 19,
+    "state": 2,
+    "n_ctx": 16384,
+    "n_past": 32,
+    "prompt_tokens": 32,
+    "cache_tokens": [1, 366, 263, 2479, 310, 304, 1348, 29892, 330, 263, 2077, 366, 29902, 13, 13, 6251, 29973, 29871, 29906, 29889, 1618, 1024, 310, 3681, 29892, 596, 1462, 366],
+    "n_decoded": 0,
+    "speculative": false
+  },
+  {
+    "id": 3,
+    "task_id": -1,
+    "state": 0,
+    "n_ctx": 16384,
+    "n_past": 0,
+    "prompt_tokens": 0,
+    "cache_tokens": [],
+    "n_decoded": 0,
+    "speculative": false
+  }
+]

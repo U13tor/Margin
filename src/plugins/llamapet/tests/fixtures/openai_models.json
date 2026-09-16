@@ -1,0 +1,17 @@
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "qwen2.5-14b-instruct",
+      "object": "model",
+      "created": 1726000000,
+      "owned_by": "vllm"
+    },
+    {
+      "id": "embedding-model",
+      "object": "model",
+      "created": 1726000001,
+      "owned_by": "vllm"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+    <qresource prefix="/llamapet">
+        <file>assets/skins/pixel_llama/skin.json</file>
+        <file>assets/icons/llamapet.svg</file>
+        <file>ui/MiniPetWindow.qml</file>
+        <file>ui/DockWindow.qml</file>
+        <file>ui/HudTab.qml</file>
+        <file>ui/SettingsPage.qml</file>
+        <file>ui/components/EmotionSprite.qml</file>
+        <file>ui/components/MetricValue.qml</file>
+        <file>ui/components/MiniProgress.qml</file>
+        <file>ui/components/SlotLights.qml</file>
+        <file>ui/components/DialogBubble.qml</file>
+    </qresource>
+</RCC>

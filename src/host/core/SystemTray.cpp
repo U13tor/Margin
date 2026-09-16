@@ -129,6 +129,33 @@ void SystemTray::buildMenu() {
     rebuildMenu();
 }
 
+void SystemTray::setPluginNameLookup(PluginNameLookup lookup) {
+    m_nameLookup = std::move(lookup);
+}
+
+QString SystemTray::pluginDisplayName(const QString& pluginId) const {
+    if (m_nameLookup) {
+        const QString name = m_nameLookup(pluginId);
+        if (!name.isEmpty()) return name;
+    }
+    if (pluginId == QLatin1String("llamapet")) {
+        return QCoreApplication::translate("SystemTray", "LlamaPet (Desktop Pet)");
+    }
+    if (pluginId == QLatin1String("aura")) {
+        return QCoreApplication::translate("SystemTray", "Aura Locker");
+    }
+    if (pluginId == QLatin1String("rhythm")) {
+        return QCoreApplication::translate("SystemTray", "Rhythm & Health");
+    }
+    if (pluginId == QLatin1String("screen_time")) {
+        return QCoreApplication::translate("SystemTray", "Screen Time");
+    }
+    if (pluginId == QLatin1String("hello")) {
+        return QCoreApplication::translate("SystemTray", "Hello (Demo)");
+    }
+    return pluginId;
+}
+
 void SystemTray::rebuildMenu() {
     if (!m_menu) return;
 
@@ -153,11 +180,17 @@ void SystemTray::rebuildMenu() {
     header->setEnabled(false);
     header->setIcon(m_iconNormal);
 
-    // ── Section 2: Plugin toggle group ──────────────────────────────
-    // Iterate plugins in insertion order; pick read_only=false items so
-    // toggles (Aura / Rhythm) cluster together.
+    // ── Section 2: Quick toggle group (single-item plugins) ───────────
+    // Iterate plugins in insertion order; plugins with actionable items <= 1
+    // (Aura / Rhythm / Hello) stay directly in the root menu for fast access.
     bool addedToggle = false;
     for (const auto& [pluginId, items] : m_pluginItems) {
+        int actionableCount = 0;
+        for (const auto& it : items) {
+            if (!it.read_only) ++actionableCount;
+        }
+        if (actionableCount > 1) continue; // Multi-item plugins go to submenus
+
         for (const auto& item : items) {
             if (item.read_only) continue;
             if (!addedToggle) {
@@ -193,6 +226,49 @@ void SystemTray::rebuildMenu() {
             // the intent visible (gray text) in native QMenu.
             act->setEnabled(false);
             (void)pluginId;  // not routed, no entry in m_actionMap
+        }
+    }
+
+    // ── Section 3.5: Plugin Submenus (multi-item plugins) ────────────
+    // Plugins with > 1 actionable items (such as LlamaPet with 7 items)
+    // are neatly contained inside dedicated submenus rather than cluttering
+    // the root menu.
+    for (const auto& [pluginId, items] : m_pluginItems) {
+        int actionableCount = 0;
+        for (const auto& it : items) {
+            if (!it.read_only) ++actionableCount;
+        }
+        if (actionableCount <= 1) continue;
+
+        addSepIfNeeded();
+        QMenu* subMenu = m_menu->addMenu(pluginDisplayName(pluginId));
+        if (m_menu) subMenu->setStyleSheet(m_menu->styleSheet());
+
+        QString prevPrefix;
+        for (const auto& item : items) {
+            const QString itemId = QString::fromStdString(item.id);
+            QString prefix = itemId.section(QLatin1Char('_'), 0, 0);
+            if (!prevPrefix.isEmpty() && prevPrefix != prefix) {
+                const auto subActions = subMenu->actions();
+                if (!subActions.isEmpty() && !subActions.last()->isSeparator()) {
+                    subMenu->addSeparator();
+                }
+            }
+            prevPrefix = prefix;
+
+            QAction* act = subMenu->addAction(QString::fromStdString(item.label));
+            act->setEnabled(item.enabled);
+            act->setCheckable(item.checkable);
+            act->setChecked(item.checked);
+            if (item.read_only) {
+                act->setEnabled(false);
+            } else {
+                m_actionMap.insert(act, PluginAction{pluginId, itemId});
+                connect(act, &QAction::triggered, this, [this, act]() {
+                    const auto& pa = m_actionMap.value(act);
+                    emit pluginItemClicked(pa.pluginId, pa.itemId);
+                });
+            }
         }
     }
 

@@ -73,8 +73,12 @@ jobs:
               echo "::error::placeholder or XOR found in src/ (see docs/13-lessons-learned.md)"
               exit 1
             fi
-            if grep -rEn "QNetworkAccessManager|QNetworkRequest" src/; then
-              echo "::error::Qt network classes found in src/ (violates §5.1 zero-network)"
+            if grep -rEn "QNetworkAccessManager|QNetworkRequest" src/ --exclude-dir=llamapet; then
+              echo "::error::Qt network classes found in src/ (violates §5.1 loopback-only exception, see docs/llamapet-plugin/03-governance.md)"
+              exit 1
+            fi
+            if ! grep -q "localhost-http" src/plugins/llamapet/llamapet.manifest.json; then
+              echo "::error::llamapet uses network but manifest missing 'localhost-http' permission"
               exit 1
             fi
           fi

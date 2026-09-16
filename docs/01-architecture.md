@@ -31,7 +31,7 @@ Margin 是单进程、多插件、事件驱动的桌面应用。本文档说明 
 │                          │ Plugin ABI(C++ vtable)           │
 │  ┌───────────────────────┴───────────────────────────────┐ │
 │  │              Plugin DLLs(动态加载)                    │ │
-│  │   hello.dll   aura.dll   screen_time.dll   rhythm.dll │ │
+│  │   aura.dll  screen_time.dll  rhythm.dll  llamapet.dll │ │
 │  └───────────────────────────────────────────────────────┘ │
 │                                                             │
 │  ┌──────────────────────────────────────────────────────┐  │
@@ -42,12 +42,36 @@ Margin 是单进程、多插件、事件驱动的桌面应用。本文档说明 
 └─────────────────────────────────────────────────────────────┘
 ```
 
+插件二进制目录树布局（`%LOCALAPPDATA%\Margin\plugins\` 或免安装版 `plugins/`）：
+```text
+plugins/
+├── margin-aura-locker.dll
+├── margin-aura-locker.manifest.json
+├── margin-screen-time.dll
+├── margin-screen-time.manifest.json
+├── margin-rhythm.dll
+├── margin-rhythm.manifest.json
+├── margin-llamapet.dll
+└── margin-llamapet.manifest.json
+```
+
 关键决策：
 
-1. **单进程**:Host 与所有插件运行在同一进程中，不采用子进程隔离（以避免 IPC 引入的复杂度）。
+1. **单进程**：Host 与所有插件运行在同一进程中，不采用子进程隔离（以避免 IPC 引入的复杂度）。
 2. **DLL 动态加载**：插件通过 `LoadLibrary` 或 `dlopen` 加载，经 C++ vtable 调用。
 3. **EventBus 为唯一通道**：跨插件协作必须通过 EventBus，不允许直接调用其他插件的符号。
 4. **UI 在主线程**：所有 QML 在主线程渲染；后台任务使用 `QThread` 或 `QtConcurrent`。
+
+---
+
+## 网络安全架构：回环护栏（LoopbackGuard）
+
+Margin 严格奉行 **100% local / 零外网通信** 的最高原则。所有核心功能（锁屏、屏幕时间统计、番茄钟）均完全离线运行。
+
+为了支持本地大模型推理遥测（`margin-llamapet`），系统引入了受严密约束的 `localhost-http` 权限：
+1. **单一目的**：仅用于与本地部署的推理引擎（如 `llama-server`、`Ollama`、本地兼容端点）进行轻量 HTTP 遥测（如轮询 `/slots`、`/health` 接口获取 KV 缓存状态与 TPS）；
+2. **代码级拦截（LoopbackGuard）**：底层网络请求统一由 `LoopbackGuard` 进行前置断言守卫。任何目标主机名或 IP 不属于回环地址（即仅允许 `127.0.0.1`、`localhost`、`::1`）的请求，都会在构造阶段被直接断言拦截并阻断；
+3. **零公网泄漏保障**：CI 静态代码审计会扫描除 `llamapet` 外的全部源码目录，禁止引入任何 `QNetworkAccessManager` 或 `QNetworkRequest` 类，从工具链杜绝公网网络访问。
 
 ---
 

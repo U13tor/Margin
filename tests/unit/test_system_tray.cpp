@@ -218,6 +218,72 @@ private slots:
         const auto args = spy.takeFirst();
         QCOMPARE(args.at(0).toString(), QString());
     }
+
+    void multiItemPluginRenderedAsSubmenu() {
+        Margin::SystemTray tray;
+        Margin::TrayMenuContributor::TrayItem item1;
+        item1.id = "toggle_top";
+        item1.label = "Always on Top";
+        item1.checkable = true;
+        item1.checked = true;
+
+        Margin::TrayMenuContributor::TrayItem item2;
+        item2.id = "toggle_click";
+        item2.label = "Click-through";
+        item2.checkable = true;
+        item2.checked = false;
+
+        Margin::TrayMenuContributor::TrayItem item3;
+        item3.id = "action_cmd";
+        item3.label = "Copy Command";
+
+        tray.addPluginItems("llamapet", { item1, item2, item3 });
+
+        QMenu* rootMenu = tray.menuForTesting();
+        // Items must NOT be in the root menu
+        QVERIFY(findActionByText(rootMenu, QStringLiteral("Always on Top")) == nullptr);
+        QVERIFY(findActionByText(rootMenu, QStringLiteral("Click-through")) == nullptr);
+
+        // Submenu must be present in the root menu
+        QAction* subMenuAction = nullptr;
+        for (QAction* a : rootMenu->actions()) {
+            if (a->menu() && a->text().contains(QStringLiteral("LlamaPet"))) {
+                subMenuAction = a;
+                break;
+            }
+        }
+        QVERIFY(subMenuAction != nullptr);
+        QMenu* subMenu = subMenuAction->menu();
+        QVERIFY(subMenu != nullptr);
+
+        // Submenu actions check
+        QAction* topAction = findActionByText(subMenu, QStringLiteral("Always on Top"));
+        QVERIFY(topAction != nullptr);
+        QVERIFY(topAction->isCheckable());
+        QVERIFY(topAction->isChecked());
+
+        QAction* cmdAction = findActionByText(subMenu, QStringLiteral("Copy Command"));
+        QVERIFY(cmdAction != nullptr);
+
+        // Signal trigger check
+        QSignalSpy spy(&tray, &Margin::SystemTray::pluginItemClicked);
+        emit topAction->triggered();
+        QCOMPARE(spy.count(), 1);
+        const auto args = spy.takeFirst();
+        QCOMPARE(args.at(0).toString(), QStringLiteral("llamapet"));
+        QCOMPARE(args.at(1).toString(), QStringLiteral("toggle_top"));
+
+        // Remove plugin removes submenu
+        tray.removePluginItems("llamapet");
+        bool foundSub = false;
+        for (QAction* a : tray.menuForTesting()->actions()) {
+            if (a->menu() && a->text().contains(QStringLiteral("LlamaPet"))) {
+                foundSub = true;
+                break;
+            }
+        }
+        QVERIFY(!foundSub);
+    }
 };
 
 QTEST_MAIN(TestSystemTray)

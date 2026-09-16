@@ -164,6 +164,8 @@ if(MARGIN_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)  # M0-C4 (was M0-C9 — moved up for EventBus unit tests)
 endif()
+add_subdirectory(src/plugins/llamapet)     # L-M1 skeleton (LlamaPet telemetry plugin)
+
 
 # M6-C3: Windows install rules + CPack NSIS configuration.
 # Per-user install to %LOCALAPPDATA%\Margin (no UAC) — see docs/02-source-layout.md §2.1.
@@ -219,7 +221,8 @@ if(WIN32)
             \"${CMAKE_SOURCE_DIR}/src/ui/charts\"
             \"${CMAKE_SOURCE_DIR}/src/plugins/rhythm/qml\"
             \"${CMAKE_SOURCE_DIR}/src/plugins/aura_locker/qml\"
-            \"${CMAKE_SOURCE_DIR}/src/plugins/screen_time/qml\")
+            \"${CMAKE_SOURCE_DIR}/src/plugins/screen_time/qml\"
+            \"${CMAKE_SOURCE_DIR}/src/plugins/llamapet/ui\")
         set(_qmldir_args \"\")
         foreach(_d \${_qml_dirs})
             list(APPEND _qmldir_args \"--qmldir\" \"\${_d}\")

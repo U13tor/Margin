@@ -68,7 +68,7 @@ if [[ "$(uname -s)" == MINGW* ]] && ! command -v cl.exe >/dev/null 2>&1; then
     cat > "$BOOTSTRAP_BAT" <<EOF_BAT
 @echo off
 call "$VC_BAT"
-set "PATH=$VS_NINJA;$QT_DIR\\bin;%PATH%"
+set "PATH=C:\Program Files\CMake\bin;$VS_NINJA;$QT_DIR\\bin;%PATH%"
 set "Qt6_DIR=$QT_DIR"
 set "VCPKG_ROOT=$VCPKG_ROOT_LOCAL"
 bash "$SCRIPT_PATH" "$PLATFORM"
@@ -107,8 +107,12 @@ if [ -d src/ ]; then
         echo "[build-smoke] See docs/13-lessons-learned.md and docs/07-privacy-security.md"
         exit 1
     fi
-    if grep -rEn "QNetworkAccessManager\|QNetworkRequest" src/; then
-        echo "[build-smoke] FAIL: Qt network classes found in src/ (violates §5.1 zero-network)"
+    if grep -rEn "QNetworkAccessManager\|QNetworkRequest" src/ --exclude-dir=llamapet; then
+        echo "[build-smoke] FAIL: Qt network classes found in src/ (violates §5.1 loopback-only exception)"
+        exit 1
+    fi
+    if ! grep -q "localhost-http" src/plugins/llamapet/llamapet.manifest.json; then
+        echo "[build-smoke] FAIL: llamapet manifest missing 'localhost-http' permission (ADR 2026-09-15)"
         exit 1
     fi
 fi

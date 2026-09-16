@@ -48,6 +48,7 @@ class InputMonitorService;
 
 class PluginManager : public QObject {
     Q_OBJECT
+    Q_PROPERTY(QVariantList plugins READ pluginList NOTIFY pluginsChanged)
 
 public:
     // Each plugin gets its own HostServicesImpl wrapper on load, sharing
@@ -118,6 +119,24 @@ public:
     /// and before m_engine->retranslate().
     void setLanguage(const QString& localeCode);
 
+    /// Dynamically load a discovered plugin by id.
+    Q_INVOKABLE bool loadPlugin(const QString& id);
+
+    /// Dynamically unload a loaded plugin by id.
+    Q_INVOKABLE bool unloadPlugin(const QString& id);
+
+    /// Set plugin enabled status in settings and dynamically load/unload.
+    Q_INVOKABLE void setPluginEnabled(const QString& id, bool enabled);
+
+    /// Check if a plugin is currently loaded in memory.
+    Q_INVOKABLE bool isPluginLoaded(const QString& id) const;
+
+    /// Check if a plugin is marked enabled in settings.
+    Q_INVOKABLE bool isPluginEnabled(const QString& id) const;
+
+    /// List of all discovered plugins with metadata and status.
+    QVariantList pluginList() const;
+
     /// A plugin discovered on disk, before load. Public so the load-order
     /// policy (sortByLoadOrder) is unit-testable without the filesystem.
     struct DiscoveredPlugin {
@@ -125,11 +144,28 @@ public:
         QString      path;                 // absolute path to the DLL
         int          priority = 100;       // manifest "priority"; lower loads first
         QStringList  encryptedSettings;    // manifest `encrypted_settings` array
+        QString      name;
+        QString      description;
+        QString      version;
+        QString      author;
+        QStringList  permissions;
+        QStringList  uiContributions;
+        bool         isLoaded = false;
+        bool         isEnabled = true;
+
+        DiscoveredPlugin() = default;
+        DiscoveredPlugin(const QString& pId, const QString& pPath, int pPriority = 100, const QStringList& pEnc = {})
+            : id(pId), path(pPath), priority(pPriority), encryptedSettings(pEnc) {}
     };
 
     /// Stable load order per docs/04-plugin-spec.md §加载顺序:
     /// priority ascending, then id lexicographically ascending.
     static void sortByLoadOrder(std::vector<DiscoveredPlugin>& plugins);
+
+signals:
+    void pluginsChanged();
+    void pluginLoaded(const QString& id);
+    void pluginUnloaded(const QString& id);
 
 private:
     struct LoadedPlugin;
@@ -167,6 +203,7 @@ private:
     // Defaults to "auto" until the first setLanguage call. Resolved locale
     // is what gets passed back in for any plugin loaded later.
     QString m_currentLanguage = QStringLiteral("auto");
+    std::vector<DiscoveredPlugin> m_discovered;
 };
 
 } // namespace Margin

@@ -68,6 +68,11 @@ public:
     /// Called once by PluginManager during bootstrap.
     void setContributorLookup(TrayContributorLookup lookup);
 
+    /// Lookup callback: given a pluginId, return its human-readable display name.
+    using PluginNameLookup = std::function<QString(const QString& pluginId)>;
+    void setPluginNameLookup(PluginNameLookup lookup);
+    QString pluginDisplayName(const QString& pluginId) const;
+
     /// Re-evaluate every menu label under the currently-installed translator.
     /// Called by HostCore::applyLanguage after installTranslator so host
     /// actions (Open Dashboard / Settings / About / Quit) flip language
@@ -123,6 +128,7 @@ private:
     QList<QPair<QString, QList<TrayMenuContributor::TrayItem>>> m_pluginItems;
     QHash<QAction*, PluginAction>        m_actionMap;
     TrayContributorLookup                m_lookup;
+    PluginNameLookup                     m_nameLookup;
 };
 
 } // namespace Margin

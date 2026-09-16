@@ -99,8 +99,12 @@ jobs:
             echo "::error::placeholder or XOR found in src/ (see docs/13-lessons-learned.md)"
             exit 1
           fi
-          if grep -rEn "QNetworkAccessManager|QNetworkRequest" src/; then
-            echo "::error::Qt network classes found in src/ (violates §5.1 zero-network)"
+          if grep -rEn "QNetworkAccessManager|QNetworkRequest" src/ --exclude-dir=llamapet; then
+            echo "::error::Qt network classes found in src/ (violates §5.1 loopback-only exception, see docs/llamapet-plugin/03-governance.md)"
+            exit 1
+          fi
+          if ! grep -q "localhost-http" src/plugins/llamapet/llamapet.manifest.json; then
+            echo "::error::llamapet uses network but manifest missing 'localhost-http' permission"
             exit 1
           fi
 
@@ -135,7 +139,9 @@ jobs:
             build/win64-msvc-release/stage/Margin.exe \
             build/win64-msvc-release/stage/platforms/qwindows.dll \
             build/win64-msvc-release/stage/licenses/LICENSE \
-            build/win64-msvc-release/stage/plugins/margin-aura-locker.dll; do
+            build/win64-msvc-release/stage/plugins/margin-aura-locker.dll \
+            build/win64-msvc-release/stage/plugins/margin-llamapet.dll \
+            build/win64-msvc-release/stage/plugins/margin-llamapet.manifest.json; do
             if [ -f "$f" ]; then echo "OK: $f"; else echo "MISSING: $f"; fi
           done
           # Qt6Cored.dll (Debug) OR Qt6Core.dll (Release)
@@ -147,6 +153,8 @@ jobs:
           test -f build/win64-msvc-release/stage/platforms/qwindows.dll
           test -f build/win64-msvc-release/stage/licenses/LICENSE
           test -f build/win64-msvc-release/stage/plugins/margin-aura-locker.dll
+          test -f build/win64-msvc-release/stage/plugins/margin-llamapet.dll
+          test -f build/win64-msvc-release/stage/plugins/margin-llamapet.manifest.json
 
       - name: Upload staging dir (on failure)
         if: failure()

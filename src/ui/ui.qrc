@@ -5,6 +5,7 @@
         <file>SettingsWindow.qml</file>
         <file>SettingsGeneralPage.qml</file>
         <file>SettingsAppearancePage.qml</file>
+        <file>SettingsPluginsPage.qml</file>
         <file>SettingsAboutPage.qml</file>
         <file>TabBar.qml</file>
         <file>StatusBar.qml</file>

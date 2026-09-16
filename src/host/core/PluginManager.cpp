@@ -107,10 +107,29 @@ void PluginManager::discoverInDir(const QString& dirPath,
         }
         const int priority = obj.value(QStringLiteral("priority")).toInt(100);
 
+        DiscoveredPlugin dp{ id, info.absoluteFilePath(), priority, {} };
+        dp.name = obj.value(QStringLiteral("name")).toString(id);
+        dp.description = obj.value(QStringLiteral("description")).toString();
+        dp.version = obj.value(QStringLiteral("version")).toString();
+        dp.author = obj.value(QStringLiteral("author")).toString();
+
+        const QJsonValue permsVal = obj.value(QStringLiteral("permissions"));
+        if (permsVal.isArray()) {
+            for (const auto& v : permsVal.toArray()) {
+                if (v.isString()) dp.permissions.append(v.toString());
+            }
+        }
+
+        const QJsonValue uiVal = obj.value(QStringLiteral("ui_contributions"));
+        if (uiVal.isArray()) {
+            for (const auto& v : uiVal.toArray()) {
+                if (v.isString()) dp.uiContributions.append(v.toString());
+            }
+        }
+
         // Pull encrypted_settings (§4.4 step 2) so PluginManager can pre-register
         // the set with Settings before any plugin onLoad — even a failed onLoad
         // leaves the declaration counted, which matches the audit guarantee.
-        DiscoveredPlugin dp{ id, info.absoluteFilePath(), priority, {} };
         const QJsonValue encVal = obj.value(QStringLiteral("encrypted_settings"));
         if (encVal.isArray()) {
             const QJsonArray arr = encVal.toArray();
@@ -135,12 +154,13 @@ void PluginManager::loadAll(const QStringList& scanDirs) {
         ordered.push_back(it.value());
     }
     sortByLoadOrder(ordered);
+    m_discovered = std::move(ordered);
 
     // Pre-register encrypted keys with Settings BEFORE any onLoad. Per
     // docs/05-host-services.md §4.4 step 2 this runs at discovery time
     // so a later plugin's pairDevice(...) call lands as ciphertext.
     QSet<QString> encryptedKeys;
-    for (const DiscoveredPlugin& dp : ordered) {
+    for (const DiscoveredPlugin& dp : m_discovered) {
         for (const QString& k : dp.encryptedSettings) encryptedKeys.insert(k);
     }
     if (!encryptedKeys.isEmpty()) {
@@ -150,11 +170,25 @@ void PluginManager::loadAll(const QStringList& scanDirs) {
                           .arg(encryptedKeys.size()));
     }
 
-    for (const DiscoveredPlugin& dp : ordered) {
-        loadOne(dp.path);
+    for (auto& dp : m_discovered) {
+        const bool enabled = m_settings.get(
+            QStringLiteral("plugins.") + dp.id + QStringLiteral(".enabled"), true).toBool();
+        dp.isEnabled = enabled;
+        if (enabled) {
+            dp.isLoaded = loadOne(dp.path);
+            if (dp.isLoaded) {
+                emit pluginLoaded(dp.id);
+            }
+        } else {
+            dp.isLoaded = false;
+            m_logger.info(QStringLiteral("plugin"),
+                          QStringLiteral("plugin %1 is disabled in settings; skipping load")
+                              .arg(dp.id));
+        }
     }
     m_logger.info(QStringLiteral("plugin"),
                   QStringLiteral("loaded %1 plugin(s)").arg(m_loaded.size()));
+    emit pluginsChanged();
 }
 
 void PluginManager::sortByLoadOrder(std::vector<DiscoveredPlugin>& plugins) {
@@ -318,49 +352,130 @@ bool PluginManager::loadOne(const QString& dllPath) {
     return true;
 }
 
-void PluginManager::unloadAll() {
-    // Reverse-load order: onUnload -> unsubscribeAll -> QLibrary::unload.
-    while (!m_loaded.empty()) {
-        auto loaded = std::move(m_loaded.back());
-        m_loaded.pop_back();
+bool PluginManager::loadPlugin(const QString& id) {
+    if (plugin(id.toStdString()) != nullptr) return true;
 
-        // Drop tray items before the plugin goes away so the menu doesn't
-        // hold a click handler that routes to a dying plugin.
-        if (m_trayIntegration) {
-            m_trayIntegration->removePluginItems(QString::fromStdString(loaded->id));
-        }
-
-        // PR2 i18n: uninstall translator before the DLL goes away so QML
-        // doesn't query a translator whose catalog is being unmapped.
-        removePluginTranslator(QString::fromStdString(loaded->id));
-
-        if (loaded->instance) {
-            m_logger.info(QStringLiteral("plugin"),
-                          QStringLiteral("unloading %1")
-                              .arg(QString::fromStdString(loaded->id)));
-            try {
-                loaded->instance->onUnload();
-            } catch (const std::exception& e) {
-                m_logger.error(QStringLiteral("plugin"),
-                               QStringLiteral("%1: onUnload threw: %2")
-                                   .arg(QString::fromStdString(loaded->id),
-                                        QString::fromUtf8(e.what())));
-            }
-            m_logger.info(QStringLiteral("plugin"),
-                          QStringLiteral("unloaded %1")
-                              .arg(QString::fromStdString(loaded->id)));
-        }
-
-        // Defensive cleanup of any subscriptions the plugin forgot.
-        m_eventBus.unsubscribeAll(loaded->subscriberIdentity.get());
-
-        // ~LoadedPlugin runs here. Member reverse-declaration order:
-        //   subscriberIdentity → instance(raw) → library(unload DLL) →
-        //   hostWrapper → id.
-        // hostWrapper is destroyed AFTER library unloads the DLL, which is
-        // safe because the plugin's onUnload already returned by this point
-        // and PluginManager is the only owner of the wrapper.
+    auto it = std::find_if(m_discovered.begin(), m_discovered.end(),
+                           [&id](const DiscoveredPlugin& dp) { return dp.id == id; });
+    if (it == m_discovered.end()) {
+        m_logger.warn(QStringLiteral("plugin"),
+                      QStringLiteral("loadPlugin: plugin '%1' not discovered").arg(id));
+        return false;
     }
+
+    if (!it->encryptedSettings.isEmpty()) {
+        QSet<QString> s;
+        for (const auto& k : it->encryptedSettings) s.insert(k);
+        m_settings.registerEncryptedKeys(s);
+    }
+
+    bool ok = loadOne(it->path);
+    it->isLoaded = ok;
+    if (ok) {
+        emit pluginLoaded(id);
+    }
+    emit pluginsChanged();
+    return ok;
+}
+
+bool PluginManager::unloadPlugin(const QString& id) {
+    auto it = std::find_if(m_loaded.begin(), m_loaded.end(),
+                           [&id](const std::unique_ptr<LoadedPlugin>& lp) {
+                               return lp && lp->id == id.toStdString();
+                           });
+    if (it == m_loaded.end()) {
+        for (auto& dp : m_discovered) {
+            if (dp.id == id) dp.isLoaded = false;
+        }
+        return true;
+    }
+
+    auto loaded = std::move(*it);
+    m_loaded.erase(it);
+
+    if (m_trayIntegration) {
+        m_trayIntegration->removePluginItems(id);
+    }
+
+    removePluginTranslator(id);
+
+    if (loaded->instance) {
+        m_logger.info(QStringLiteral("plugin"),
+                      QStringLiteral("unloading %1").arg(id));
+        try {
+            loaded->instance->onUnload();
+        } catch (const std::exception& e) {
+            m_logger.error(QStringLiteral("plugin"),
+                           QStringLiteral("%1: onUnload threw: %2")
+                               .arg(id, QString::fromUtf8(e.what())));
+        }
+        m_logger.info(QStringLiteral("plugin"),
+                      QStringLiteral("unloaded %1").arg(id));
+    }
+
+    m_eventBus.unsubscribeAll(loaded->subscriberIdentity.get());
+
+    for (auto& dp : m_discovered) {
+        if (dp.id == id) {
+            dp.isLoaded = false;
+            break;
+        }
+    }
+
+    emit pluginUnloaded(id);
+    emit pluginsChanged();
+    return true;
+}
+
+void PluginManager::setPluginEnabled(const QString& id, bool enabled) {
+    m_settings.set(QStringLiteral("plugins.") + id + QStringLiteral(".enabled"), enabled);
+    for (auto& dp : m_discovered) {
+        if (dp.id == id) {
+            dp.isEnabled = enabled;
+            break;
+        }
+    }
+    if (enabled) {
+        loadPlugin(id);
+    } else {
+        unloadPlugin(id);
+    }
+}
+
+bool PluginManager::isPluginLoaded(const QString& id) const {
+    return plugin(id.toStdString()) != nullptr;
+}
+
+bool PluginManager::isPluginEnabled(const QString& id) const {
+    return m_settings.get(QStringLiteral("plugins.") + id + QStringLiteral(".enabled"), true).toBool();
+}
+
+QVariantList PluginManager::pluginList() const {
+    QVariantList list;
+    for (const auto& dp : m_discovered) {
+        QVariantMap map;
+        map.insert(QStringLiteral("id"), dp.id);
+        map.insert(QStringLiteral("name"), dp.name.isEmpty() ? dp.id : dp.name);
+        map.insert(QStringLiteral("version"), dp.version);
+        map.insert(QStringLiteral("description"), dp.description);
+        map.insert(QStringLiteral("author"), dp.author);
+        map.insert(QStringLiteral("path"), dp.path);
+        map.insert(QStringLiteral("permissions"), dp.permissions);
+        map.insert(QStringLiteral("uiContributions"), dp.uiContributions);
+        map.insert(QStringLiteral("isLoaded"), isPluginLoaded(dp.id));
+        map.insert(QStringLiteral("isEnabled"), isPluginEnabled(dp.id));
+        list.append(map);
+    }
+    return list;
+}
+
+void PluginManager::unloadAll() {
+    const bool wasBlocked = blockSignals(true);
+    while (!m_loaded.empty()) {
+        const QString id = QString::fromStdString(m_loaded.back()->id);
+        unloadPlugin(id);
+    }
+    blockSignals(wasBlocked);
 }
 
 void PluginManager::setTrayIntegration(SystemTray* tray) {
@@ -377,6 +492,13 @@ void PluginManager::setTrayIntegration(SystemTray* tray) {
             [this](const QString& pluginId) -> TrayMenuContributor* {
                 auto* iface = plugin(pluginId.toStdString());
                 return iface ? iface->asTrayMenu() : nullptr;
+            });
+        m_trayIntegration->setPluginNameLookup(
+            [this](const QString& pluginId) -> QString {
+                for (const auto& dp : m_discovered) {
+                    if (dp.id == pluginId) return dp.name;
+                }
+                return {};
             });
     }
 }

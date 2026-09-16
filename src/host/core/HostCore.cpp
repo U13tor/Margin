@@ -170,6 +170,30 @@ bool HostCore::bootstrap() {
     m_tabRegistry = std::make_unique<DashboardTabRegistry>();
     m_settingsRegistry = std::make_unique<SettingsRegistry>();
     reemitRegistries();
+
+    QObject::connect(m_plugins.get(), &PluginManager::pluginLoaded, [this](const QString&) {
+        if (m_shutdownDone) return;
+        if (m_tabRegistry && m_settingsRegistry) reemitRegistries();
+        if (m_overlayRegistry && m_plugins) {
+            m_overlayRegistry->clear();
+            m_plugins->forEachPlugin([this](PluginInterface* p) {
+                if (auto* c = p->asOverlay()) m_overlayRegistry->addContributor(c);
+            });
+            m_overlayRegistry->pollAll();
+        }
+    });
+    QObject::connect(m_plugins.get(), &PluginManager::pluginUnloaded, [this](const QString&) {
+        if (m_shutdownDone) return;
+        if (m_tabRegistry && m_settingsRegistry) reemitRegistries();
+        if (m_overlayRegistry && m_plugins) {
+            m_overlayRegistry->clear();
+            m_plugins->forEachPlugin([this](PluginInterface* p) {
+                if (auto* c = p->asOverlay()) m_overlayRegistry->addContributor(c);
+            });
+            m_overlayRegistry->pollAll();
+        }
+    });
+
     m_logger->info(QStringLiteral("host"),
                    QStringLiteral("dashboard tabs: %1 entries")
                        .arg(m_tabRegistry->tabs().size()));
@@ -233,6 +257,8 @@ bool HostCore::bootstrap() {
     // settingsRegistry feeds SettingsWindow.qml's sidebar ListView.
     m_engine->rootContext()->setContextProperty(
         QStringLiteral("settingsRegistry"), m_settingsRegistry.get());
+    m_engine->rootContext()->setContextProperty(
+        QStringLiteral("pluginManager"), m_plugins.get());
     // M5-C4d: General-page QML bridge. Q_PROPERTY logLevel + Settings
     // persistence. Subscribe to Settings::onChange so a QML dropdown change
     // flows back through HostCore::applyLogLevel — no restart required.
@@ -653,6 +679,13 @@ void HostCore::registerHostPages() {
         QStringLiteral("host"), 20,
     });
     m_settingsRegistry->addPage({
+        QStringLiteral("plugins_mgmt"),
+        QCoreApplication::translate("SettingsPages", "Plugins"),
+        QUrl(QStringLiteral("qrc:/icons/settings.svg")),
+        QUrl(QStringLiteral("qrc:/ui/SettingsPluginsPage.qml")),
+        QStringLiteral("host"), 25,
+    });
+    m_settingsRegistry->addPage({
         QStringLiteral("about"),
         QCoreApplication::translate("SettingsPages", "About"),
         QUrl(QStringLiteral("qrc:/icons/icon-info.svg")),
@@ -694,10 +727,13 @@ void HostCore::registerPluginTabsAndPages() {
 
 void HostCore::reemitRegistries() {
     // Clear → re-register host entries → re-register plugin entries →
-    // re-sort. Each addTab/addPage emits tabsChanged/pagesChanged, so QML
-    // ListView rebuilds several times during a single reemit. Cost is
-    // bounded (host=1 tab + 3 pages, plugins ≤ a handful) and correctness
-    // wins over micro-optimizing signal batching.
+    // re-sort. Batch the mutations under blockSignals(true) so QML's Repeater
+    // and StackLayout aren't torn down and rebuilt 7+ times with intermediate
+    // 0/1/2 count states that break QML StackLayout.currentIndex bindings.
+    // A single signal emission per registry after sortByOrder() keeps UI stable.
+    m_tabRegistry->blockSignals(true);
+    m_settingsRegistry->blockSignals(true);
+
     m_tabRegistry->clear();
     m_settingsRegistry->clear();
     registerHostTabs();
@@ -705,6 +741,12 @@ void HostCore::reemitRegistries() {
     registerPluginTabsAndPages();
     m_tabRegistry->sortByOrder();
     m_settingsRegistry->sortByOrder();
+
+    m_tabRegistry->blockSignals(false);
+    m_settingsRegistry->blockSignals(false);
+
+    emit m_tabRegistry->tabsChanged();
+    emit m_settingsRegistry->pagesChanged();
 }
 
 void HostCore::openSettings() {

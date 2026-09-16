@@ -181,6 +181,7 @@ PluginManager::scan()
 | `input-monitor` | 全局键鼠闲置检测（Screen Time 与 Rhythm) |
 | `notification-show` | toast 通知 |
 | `overlay-fullscreen` | 全屏遮罩 |
+| `localhost-http` | 本地回环 HTTP 访问（LlamaPet），受 LoopbackGuard 强制拦截，仅允许 127.0.0.1、localhost、::1，杜绝公网流量 |
 
 每次插件申请权限与每次使用权限均写入 `permissions.log`，用户可在
 "设置 → Privacy"中查看。
@@ -289,6 +290,22 @@ install(TARGETS hello LIBRARY DESTINATION plugins)
 
 启动 Margin 后，托盘菜单中将出现"Say Hello"，点击后日志输出
 `Hello from HelloPlugin`，并通过 EventBus 发布 `margin.hello.ping` 事件。
+
+---
+
+## 进阶参考案例（LlamaPet）
+
+更复杂的真实插件实现参见 `src/plugins/llamapet/`。它展示了以下高阶特性：
+
+1. **三路 Contributor 深度集成**：
+   - `DashboardTabContributor`：向主面板贡献 GeekHUD 遥测仪表盘（`HudTab.qml`），通过 Canvas 绘制 60 点双轨曲线与 SLOT 槽位明细网格；
+   - `SettingsPageContributor`：向设置中心贡献专属配置页（`SettingsPage.qml`），配置端点、采样率与显存阈值；
+   - `TrayMenuContributor`：向系统托盘右键菜单贡献 7 项快捷控制项（悬浮窗形态切换、置顶、穿透、贴边隐藏、清空 KV 与复制命令）。
+2. **双语国际化（i18n）**：
+   - 利用 `margin_plugin_i18n(margin_llamapet llamapet)` 宏自动将 `llamapet_en.ts` 与 `llamapet_zh_CN.ts` 编译为 `.qm` 资源并打包入动态库，支持界面语言无缝热切换。
+3. **安全与密钥保护**：
+   - 声明 `localhost-http` 权限并通过 `LoopbackGuard` 保证通信仅限于本地回环；
+   - 模型 API Key 注册入 `encrypted_settings`，由 Host 透明对接系统密钥环（Windows DPAPI）加密存储。
 
 ---
 
