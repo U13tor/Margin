@@ -65,8 +65,20 @@ Window {
         }
     }
 
-    // Invoked from the host (SystemTray::openDashboardRequested). Show + focus.
-    function openDashboard() {
+    // Invoked from the host (SystemTray::openDashboardRequested) or plugins/widgets. Show + focus.
+    // tabId (optional): if provided and matches an entry in dashboardTabs.tabs, selects that tab.
+    function openDashboard(tabId) {
+        if (tabId !== undefined && tabId !== "" && dashboardTabs && dashboardTabs.tabs) {
+            root.currentTabId = tabId
+            const tabs = dashboardTabs.tabs
+            for (let i = 0; i < tabs.length; i++) {
+                if (tabs[i].id === tabId) {
+                    root.currentTab = i
+                    contentArea.currentIndex = i
+                    break
+                }
+            }
+        }
         root.show();
         root.raise();
         root.requestActivate();

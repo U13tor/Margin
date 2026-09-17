@@ -431,6 +431,8 @@ bool HostCore::bootstrap() {
     // Tray → dashboard. Receiver is the root window so the connection is torn
     // down with the engine; invokeMethod calls the QML openDashboard() helper.
     QObject* dashboard = m_engine->rootObjects().constFirst();
+    m_engine->rootContext()->setContextProperty(
+        QStringLiteral("dashboardRoot"), dashboard);
     QObject::connect(m_tray.get(), &SystemTray::openDashboardRequested,
                      dashboard, [dashboard]() {
                          QMetaObject::invokeMethod(dashboard, "openDashboard");

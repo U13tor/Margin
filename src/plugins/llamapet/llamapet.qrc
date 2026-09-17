@@ -5,6 +5,7 @@
         <file>assets/icons/llamapet.svg</file>
         <file>ui/MiniPetWindow.qml</file>
         <file>ui/DockWindow.qml</file>
+        <file>ui/PetContextMenu.qml</file>
         <file>ui/HudTab.qml</file>
         <file>ui/SettingsPage.qml</file>
         <file>ui/components/EmotionSprite.qml</file>

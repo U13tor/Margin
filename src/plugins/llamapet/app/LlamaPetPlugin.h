@@ -50,6 +50,8 @@ public:
     void onTrayItemClicked(const std::string& id) override;
 
     // QML 交互接口
+    Q_INVOKABLE void openDetail();
+    Q_INVOKABLE void openSettings();
     Q_INVOKABLE void copyRestartCommand();
     Q_INVOKABLE void clearIdleKv();
     Q_INVOKABLE void switchForm(const QString& form);

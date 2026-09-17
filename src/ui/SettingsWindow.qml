@@ -30,23 +30,26 @@ Window {
 
     property string currentPageId: "general"
 
+    function syncToCurrentPage() {
+        if (typeof settingsRegistry === "undefined" || !settingsRegistry || !settingsRegistry.pages) return
+        const pages = settingsRegistry.pages
+        for (let i = 0; i < pages.length; i++) {
+            if (pages[i].id === root.currentPageId) {
+                sidebar.currentIndex = i
+                contentStack.currentIndex = i
+                return
+            }
+        }
+        sidebar.currentIndex = 0
+        contentStack.currentIndex = 0
+        root.currentPageId = (pages.length > 0 && pages[0].id) ? pages[0].id : "general"
+    }
+
     Connections {
         target: (typeof settingsRegistry !== "undefined") ? settingsRegistry : null
         function onPagesChanged() {
-            Qt.callLater(function() {
-                if (typeof settingsRegistry === "undefined" || !settingsRegistry || !settingsRegistry.pages) return
-                const pages = settingsRegistry.pages
-                for (let i = 0; i < pages.length; i++) {
-                    if (pages[i].id === root.currentPageId) {
-                        sidebar.currentIndex = i
-                        contentStack.currentIndex = i
-                        return
-                    }
-                }
-                sidebar.currentIndex = 0
-                contentStack.currentIndex = 0
-                root.currentPageId = (pages.length > 0 && pages[0].id) ? pages[0].id : "general"
-            })
+            root.syncToCurrentPage()
+            Qt.callLater(root.syncToCurrentPage)
         }
     }
 
@@ -61,27 +64,20 @@ Window {
     //   tray Settings / Ctrl+, / StatusBar Settings → ""
     //   AuraTab/RhythmTab/ScreenTimeTab Settings buttons → plugin id
     function openSettings(pageId) {
-        if (pageId === undefined) pageId = ""
-        if (pageId !== "" && typeof settingsRegistry !== "undefined" && settingsRegistry) {
+        if (pageId !== undefined && pageId !== "") {
             root.currentPageId = pageId
-            const pages = settingsRegistry.pages
-            for (let i = 0; i < pages.length; i++) {
-                if (pages[i].id === pageId) {
-                    sidebar.currentIndex = i
-                    break
-                }
-            }
         }
-        root.show();
-        root.raise();
-        root.requestActivate();
+        root.syncToCurrentPage()
+        root.show()
+        root.raise()
+        root.requestActivate()
     }
 
     // Veto close → just hide (mirror DashboardWindow pattern). The host
     // process stays alive via quitOnLastWindowClosed=false (set in main.cpp).
     onClosing: function(close) {
-        close.accepted = false;
-        root.visible = false;
+        close.accepted = false
+        root.visible = false
     }
 
     RowLayout {
@@ -99,13 +95,23 @@ Window {
             model: (typeof settingsRegistry !== "undefined" && settingsRegistry)
                    ? settingsRegistry.pages : []
             currentIndex: 0
-            onCurrentIndexChanged: {
-                if (typeof settingsRegistry !== "undefined" && settingsRegistry && settingsRegistry.pages) {
-                    const pages = settingsRegistry.pages
-                    if (currentIndex >= 0 && currentIndex < pages.length && pages[currentIndex].id) {
-                        root.currentPageId = pages[currentIndex].id
+            Keys.onUpPressed: function(event) {
+                if (currentIndex > 0) {
+                    currentIndex--
+                    if (model && currentIndex < model.length && model[currentIndex].id) {
+                        root.currentPageId = model[currentIndex].id
                     }
                 }
+                event.accepted = true
+            }
+            Keys.onDownPressed: function(event) {
+                if (currentIndex < count - 1) {
+                    currentIndex++
+                    if (model && currentIndex < model.length && model[currentIndex].id) {
+                        root.currentPageId = model[currentIndex].id
+                    }
+                }
+                event.accepted = true
             }
             section.property: "section"
             section.delegate: Rectangle {

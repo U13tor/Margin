@@ -10,6 +10,19 @@ Window {
     color: "transparent"
     flags: Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool
 
+    function openDetail() {
+        if (typeof llamapet !== "undefined" && llamapet) {
+            llamapet.openDetail();
+        } else if (typeof dashboardRoot !== "undefined" && dashboardRoot) {
+            dashboardRoot.openDashboard("llamapet");
+        }
+    }
+
+    PetContextMenu {
+        id: contextMenu
+        currentForm: 0
+    }
+
     Item {
         id: container
         anchors.fill: parent
@@ -63,9 +76,7 @@ Window {
                         floatingWindows.startSystemMove(win);
                     }
                 } else if (mouse.button === Qt.RightButton) {
-                    if (typeof floatingWindows !== "undefined") {
-                        floatingWindows.showContextMenu(win);
-                    }
+                    contextMenu.popupFor(win);
                 }
             }
 
@@ -82,8 +93,82 @@ Window {
             }
 
             onDoubleClicked: function(mouse) {
-                if (mouse.button === Qt.LeftButton && typeof floatingWindows !== "undefined") {
-                    floatingWindows.switchForm(1); // 切换至 Dock
+                if (mouse.button === Qt.LeftButton) {
+                    win.openDetail();
+                }
+            }
+        }
+
+        // ── 悬停快捷按钮层 ──────────────────────────────────────────
+        Item {
+            id: hoverControls
+            anchors.fill: parent
+            opacity: (mouseArea.containsMouse || detailBtnHover.containsMouse || switchBtnHover.containsMouse) ? 1.0 : 0.0
+
+            Behavior on opacity {
+                NumberAnimation { duration: 150 }
+            }
+
+            // 左上角：切换为 Dock 状态栏
+            Rectangle {
+                anchors.left: parent.left
+                anchors.top: parent.top
+                anchors.margins: 6
+                width: 20
+                height: 20
+                radius: 10
+                color: switchBtnHover.containsMouse ? "#89B4FA" : "#CC1E1E2E"
+                border.color: "#8045475A"
+                border.width: 1
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "⇄"
+                    color: switchBtnHover.containsMouse ? "#11111B" : "#CDD6F4"
+                    font.pixelSize: 11
+                }
+
+                MouseArea {
+                    id: switchBtnHover
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        if (typeof floatingWindows !== "undefined") {
+                            floatingWindows.switchForm(1);
+                        }
+                    }
+                }
+            }
+
+            // 右上角：打开详情界面
+            Rectangle {
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.margins: 6
+                width: 20
+                height: 20
+                radius: 10
+                color: detailBtnHover.containsMouse ? "#7EA6E0" : "#CC1E1E2E"
+                border.color: "#8045475A"
+                border.width: 1
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "↗"
+                    color: detailBtnHover.containsMouse ? "#11111B" : "#CDD6F4"
+                    font.pixelSize: 12
+                    font.bold: true
+                }
+
+                MouseArea {
+                    id: detailBtnHover
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        win.openDetail();
+                    }
                 }
             }
         }

@@ -19,7 +19,7 @@ constexpr const char* kTag = "llamapet";
 constexpr const char* kMiniPetQml = "qrc:/llamapet/ui/MiniPetWindow.qml";
 constexpr const char* kDockQml = "qrc:/llamapet/ui/DockWindow.qml";
 const QSize kMiniPetSize(96, 96);
-const QSize kDockSize(260, 50);
+const QSize kDockSize(280, 50);
 } // namespace
 
 FloatingWindows::FloatingWindows(QObject* parent) : QObject(parent) {}

@@ -218,6 +218,13 @@ SettingsPageContributor::PageInfo LlamaPetPlugin::pageInfo() const {
 QList<TrayMenuContributor::TrayItem> LlamaPetPlugin::contributeTrayItems() {
     QList<TrayMenuContributor::TrayItem> items;
 
+    // 0. 打开详情操作
+    TrayMenuContributor::TrayItem openDetailItem;
+    openDetailItem.id = "open_dashboard_detail";
+    openDetailItem.label = QCoreApplication::translate("LlamaPetPlugin", "Open Dashboard Details").toStdString();
+    openDetailItem.checkable = false;
+    items.append(openDetailItem);
+
     // 1. 开关组
     TrayMenuContributor::TrayItem alwaysOnTopItem;
     alwaysOnTopItem.id = "toggle_always_on_top";
@@ -275,7 +282,9 @@ QList<TrayMenuContributor::TrayItem> LlamaPetPlugin::contributeTrayItems() {
 }
 
 void LlamaPetPlugin::onTrayItemClicked(const std::string& id) {
-    if (id == "toggle_always_on_top") {
+    if (id == "open_dashboard_detail") {
+        openDetail();
+    } else if (id == "toggle_always_on_top") {
         setAlwaysOnTop(!m_alwaysOnTop);
     } else if (id == "toggle_click_through") {
         if (m_floatingWindows) {
@@ -297,6 +306,34 @@ void LlamaPetPlugin::onTrayItemClicked(const std::string& id) {
 
     if (m_ctx.host) {
         m_ctx.host->tray().refreshPluginMenu(QStringLiteral("llamapet"));
+    }
+}
+
+void LlamaPetPlugin::openDetail() {
+    auto* qml = m_ctx.host ? m_ctx.host->qml() : nullptr;
+    auto* engine = qml ? qml->engine() : nullptr;
+    if (engine) {
+        QVariant dashboardVar = engine->rootContext()->contextProperty(QStringLiteral("dashboardRoot"));
+        QObject* dashboard = dashboardVar.value<QObject*>();
+        if (dashboard) {
+            QMetaObject::invokeMethod(dashboard, "openDashboard",
+                Qt::AutoConnection,
+                Q_ARG(QVariant, QVariant::fromValue(QStringLiteral("llamapet"))));
+        }
+    }
+}
+
+void LlamaPetPlugin::openSettings() {
+    auto* qml = m_ctx.host ? m_ctx.host->qml() : nullptr;
+    auto* engine = qml ? qml->engine() : nullptr;
+    if (engine) {
+        QVariant settingsVar = engine->rootContext()->contextProperty(QStringLiteral("settingsRoot"));
+        QObject* settings = settingsVar.value<QObject*>();
+        if (settings) {
+            QMetaObject::invokeMethod(settings, "openSettings",
+                Qt::AutoConnection,
+                Q_ARG(QVariant, QVariant::fromValue(QStringLiteral("llamapet"))));
+        }
     }
 }
 
