@@ -116,7 +116,7 @@ Window {
 
                     Text {
                         Layout.fillWidth: true
-                        text: qsTr("打开仪表盘详情")
+                        text: qsTr("Open Dashboard Details")
                         color: itemHover1.containsMouse ? "#FFFFFF" : "#CDD6F4"
                         font.pixelSize: 12
                         font.weight: Font.DemiBold
@@ -133,7 +133,52 @@ Window {
                         if (typeof llamapet !== "undefined" && llamapet) {
                             llamapet.openDetail();
                         } else if (typeof dashboardRoot !== "undefined" && dashboardRoot) {
-                            dashboardRoot.openDashboard("llamapet");
+                            if (dashboardRoot.openDashboardTab) dashboardRoot.openDashboardTab("llamapet");
+                            else dashboardRoot.openDashboard();
+                        }
+                    }
+                }
+            }
+
+            // 1.1 用量与活动统计
+            Rectangle {
+                Layout.fillWidth: true
+                implicitHeight: 28
+                radius: 4
+                color: itemHoverStats.containsMouse ? "#2089B4FA" : "transparent"
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 8
+                    anchors.rightMargin: 8
+                    spacing: 8
+
+                    Text {
+                        text: "▦"
+                        color: "#00F0FF"
+                        font.pixelSize: 13
+                    }
+
+                    Text {
+                        Layout.fillWidth: true
+                        text: qsTr("Usage Stats & Heatmap")
+                        color: itemHoverStats.containsMouse ? "#FFFFFF" : "#BAC2DE"
+                        font.pixelSize: 12
+                    }
+                }
+
+                MouseArea {
+                    id: itemHoverStats
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        menuWin.hide();
+                        if (typeof llamapet !== "undefined" && llamapet) {
+                            llamapet.openStats();
+                        } else if (typeof dashboardRoot !== "undefined" && dashboardRoot) {
+                            if (dashboardRoot.openDashboardTab) dashboardRoot.openDashboardTab("llamapet");
+                            else dashboardRoot.openDashboard();
                         }
                     }
                 }
@@ -160,7 +205,7 @@ Window {
 
                     Text {
                         Layout.fillWidth: true
-                        text: menuWin.currentForm === 0 ? qsTr("切换至 Dock 状态栏") : qsTr("切换至 MiniPet 桌面宠物")
+                        text: menuWin.currentForm === 0 ? qsTr("Switch to Dock Bar") : qsTr("Switch to MiniPet")
                         color: itemHover2.containsMouse ? "#FFFFFF" : "#BAC2DE"
                         font.pixelSize: 12
                     }
@@ -201,7 +246,7 @@ Window {
 
                     Text {
                         Layout.fillWidth: true
-                        text: qsTr("LlamaPet 设置")
+                        text: qsTr("LlamaPet Settings")
                         color: itemHover3.containsMouse ? "#FFFFFF" : "#BAC2DE"
                         font.pixelSize: 12
                     }
@@ -254,7 +299,7 @@ Window {
 
                     Text {
                         Layout.fillWidth: true
-                        text: qsTr("总在最前")
+                        text: qsTr("Always on Top")
                         color: itemHover4.containsMouse ? "#FFFFFF" : "#BAC2DE"
                         font.pixelSize: 12
                     }
@@ -289,14 +334,14 @@ Window {
                     spacing: 8
 
                     Text {
-                        text: (typeof floatingWindows !== "undefined" && floatingWindows && floatingWindows.isClickThrough()) ? "☑" : "☐"
+                        text: (typeof floatingWindows !== "undefined" && floatingWindows && (floatingWindows.clickThrough || (typeof floatingWindows.isClickThrough === "function" && floatingWindows.isClickThrough()))) ? "☑" : "☐"
                         color: "#FAB387"
                         font.pixelSize: 12
                     }
 
                     Text {
                         Layout.fillWidth: true
-                        text: qsTr("鼠标穿透")
+                        text: qsTr("Click-through")
                         color: itemHover5.containsMouse ? "#FFFFFF" : "#BAC2DE"
                         font.pixelSize: 12
                     }
@@ -310,7 +355,8 @@ Window {
                     onClicked: {
                         menuWin.hide();
                         if (typeof llamapet !== "undefined" && llamapet && typeof floatingWindows !== "undefined") {
-                            llamapet.setClickThrough(!floatingWindows.isClickThrough());
+                            var currentVal = floatingWindows.clickThrough !== undefined ? floatingWindows.clickThrough : (typeof floatingWindows.isClickThrough === "function" ? floatingWindows.isClickThrough() : false);
+                            llamapet.setClickThrough(!currentVal);
                         }
                     }
                 }
@@ -346,7 +392,7 @@ Window {
 
                     Text {
                         Layout.fillWidth: true
-                        text: qsTr("隐藏悬浮窗")
+                        text: qsTr("Hide Floating Window")
                         color: itemHover6.containsMouse ? "#FFFFFF" : "#F38BA8"
                         font.pixelSize: 12
                     }

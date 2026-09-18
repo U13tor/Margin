@@ -131,4 +131,3 @@ Pull requests, issues, and all forms of feedback are welcome!
 ## License
 
 [LGPL-3.0-or-later](LICENSE) — Every `.h` and `.cpp` file includes `SPDX-License-Identifier: LGPL-3.0-or-later`.
-

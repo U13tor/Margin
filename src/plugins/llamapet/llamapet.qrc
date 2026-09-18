@@ -13,5 +13,8 @@
         <file>ui/components/MiniProgress.qml</file>
         <file>ui/components/SlotLights.qml</file>
         <file>ui/components/DialogBubble.qml</file>
+        <file>ui/components/TokenHeatmap.qml</file>
+        <file>ui/components/TokenTrendChart.qml</file>
+        <file>ui/TokenActivityView.qml</file>
     </qresource>
 </RCC>

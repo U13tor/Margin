@@ -65,9 +65,15 @@ Window {
         }
     }
 
-    // Invoked from the host (SystemTray::openDashboardRequested) or plugins/widgets. Show + focus.
-    // tabId (optional): if provided and matches an entry in dashboardTabs.tabs, selects that tab.
-    function openDashboard(tabId) {
+    // Invoked from the host (SystemTray::openDashboardRequested). Show + focus.
+    function openDashboard() {
+        root.show();
+        root.raise();
+        root.requestActivate();
+    }
+
+    // Invoked when a specific tab is requested (e.g. from widgets or plugins).
+    function openDashboardTab(tabId) {
         if (tabId !== undefined && tabId !== "" && dashboardTabs && dashboardTabs.tabs) {
             root.currentTabId = tabId
             const tabs = dashboardTabs.tabs
@@ -79,9 +85,7 @@ Window {
                 }
             }
         }
-        root.show();
-        root.raise();
-        root.requestActivate();
+        openDashboard();
     }
 
     // Close → hide to tray. quitOnLastWindowClosed is false (set by the host),

@@ -173,6 +173,92 @@ SlotsAnalysis analyzeSlots(const QList<SlotRaw>& rawSlots) {
     return analysis;
 }
 
+void TpsTracker::reset() {
+    timer.invalidate();
+    slotLastDecoded.clear();
+    smoothedTps = 0.0f;
+    monotonicTotal = 0;
+}
+
+std::optional<float> TpsTracker::update(const QList<SlotRaw>& slots, bool anyActive, bool anyDecoding, bool anyPrefill) {
+    if (!timer.isValid()) {
+        timer.start();
+        for (const auto& s : slots) {
+            slotLastDecoded[s.id] = s.decodedTokens;
+        }
+        return (smoothedTps > 0.0f) ? std::optional<float>(smoothedTps) : std::nullopt;
+    }
+
+    qint64 elapsedMs = timer.elapsed();
+    if (elapsedMs < 200) {
+        return (smoothedTps > 0.0f) ? std::optional<float>(smoothedTps) : std::nullopt;
+    }
+
+    timer.restart();
+    float elapsedSec = static_cast<float>(elapsedMs) / 1000.0f;
+
+    quint64 deltaTokens = 0;
+    for (const auto& s : slots) {
+        auto it = slotLastDecoded.find(s.id);
+        if (it != slotLastDecoded.end()) {
+            quint64 prev = it->second;
+            if (s.decodedTokens >= prev) {
+                deltaTokens += (s.decodedTokens - prev);
+            } else {
+                // Task ended and new request started or slot was reset
+                if (s.isActive && s.decodedTokens > 0) {
+                    deltaTokens += s.decodedTokens;
+                }
+            }
+        } else {
+            if (s.isActive && s.decodedTokens > 0) {
+                deltaTokens += s.decodedTokens;
+            }
+        }
+        slotLastDecoded[s.id] = s.decodedTokens;
+    }
+
+    monotonicTotal += deltaTokens;
+
+    if (deltaTokens > 0) {
+        float instantTps = static_cast<float>(deltaTokens) / elapsedSec;
+        if (smoothedTps <= 0.5f) {
+            // First burst from idle: immediately jump to initial rate for instant responsiveness
+            smoothedTps = instantTps;
+        } else {
+            // Low-pass EMA filter (alpha = 0.3): smooth out sampling jitter while remaining responsive
+            const float alpha = 0.3f;
+            smoothedTps = alpha * instantTps + (1.0f - alpha) * smoothedTps;
+        }
+        return smoothedTps;
+    }
+
+    // deltaTokens == 0 (no new tokens decoded in this window)
+    if (anyDecoding) {
+        // Actively decoding: transient network jitter / boundary offset, gentle decay
+        smoothedTps *= 0.85f;
+        return (smoothedTps > 0.1f) ? std::optional<float>(smoothedTps) : std::nullopt;
+    } else if (anyPrefill) {
+        // Model busy calculating prompt: hold or gentle decay so curve doesn't plunge
+        smoothedTps *= 0.90f;
+        return (smoothedTps > 0.1f) ? std::optional<float>(smoothedTps) : std::nullopt;
+    } else if (anyActive) {
+        // Slot marked active
+        smoothedTps *= 0.70f;
+        if (smoothedTps < 0.5f) smoothedTps = 0.0f;
+        return (smoothedTps > 0.0f) ? std::optional<float>(smoothedTps) : std::nullopt;
+    } else {
+        // Completely idle: soft graceful decay to 0 (no cliff drop)
+        if (smoothedTps > 0.5f) {
+            smoothedTps *= 0.5f;
+            return smoothedTps;
+        } else {
+            smoothedTps = 0.0f;
+            return std::nullopt;
+        }
+    }
+}
+
 std::optional<float> calcTps(QElapsedTimer& timer, quint64 totalDecoded) {
     std::lock_guard<std::mutex> lock(s_tpsMutex);
     if (!timer.isValid()) {
@@ -248,6 +334,35 @@ PropsInfo parseProps(const QString& body) {
     return info;
 }
 
+MetricsInfo parsePrometheusMetrics(const QString& body) {
+    MetricsInfo info;
+    const auto lines = QStringView(body).split(QLatin1Char('\n'));
+    for (const auto& line : lines) {
+        auto trimmed = line.trimmed();
+        if (trimmed.isEmpty() || trimmed.startsWith(QLatin1Char('#'))) {
+            continue;
+        }
+        if (trimmed.contains(QStringLiteral("tokens_predicted_total")) ||
+            trimmed.contains(QStringLiteral("num_tokens_generated_total"))) {
+            int lastSpace = trimmed.lastIndexOf(QLatin1Char(' '));
+            if (lastSpace >= 0) {
+                bool ok = false;
+                quint64 v = trimmed.mid(lastSpace + 1).toULongLong(&ok);
+                if (ok) info.predictedTokensTotal = v;
+            }
+        } else if (trimmed.contains(QStringLiteral("prompt_tokens_total")) ||
+                   trimmed.contains(QStringLiteral("num_prompt_tokens_total"))) {
+            int lastSpace = trimmed.lastIndexOf(QLatin1Char(' '));
+            if (lastSpace >= 0) {
+                bool ok = false;
+                quint64 v = trimmed.mid(lastSpace + 1).toULongLong(&ok);
+                if (ok) info.promptTokensTotal = v;
+            }
+        }
+    }
+    return info;
+}
+
 } // namespace llama_slots
 
 std::atomic<bool> LlamaCppIt::s_slotsAuthWarned{false};
@@ -260,7 +375,7 @@ LlamaCppIt::LlamaCppIt(const QString& endpoint, const QString& apiKey, QObject* 
 }
 
 LlamaCppIt::~LlamaCppIt() {
-    llama_slots::resetTps(&m_tpsTimer);
+    m_tpsTracker.reset();
 }
 
 void LlamaCppIt::setMockTelemetry(const LlmTelemetry& telemetry) {
@@ -366,7 +481,7 @@ void LlamaCppIt::fetchSlots() {
         if (err.error == QJsonParseError::NoError) {
             auto rawSlots = llama_slots::parseSlots(doc);
             auto analysis = llama_slots::analyzeSlots(rawSlots);
-            auto tps = llama_slots::calcTps(m_tpsTimer, analysis.totalDecodedTokens);
+            auto tps = m_tpsTracker.update(rawSlots, analysis.activeSlots > 0, analysis.anyDecoding, analysis.anyPrefill);
 
             m_snapshot.engine = "llama.cpp";
             m_snapshot.connected = true;
@@ -380,9 +495,35 @@ void LlamaCppIt::fetchSlots() {
             m_snapshot.anyPrefill = analysis.anyPrefill;
             m_snapshot.anyDecoding = analysis.anyDecoding;
             m_failCount = 0;
+            fetchMetrics();
         }
 
         m_inFlight = false;
+    });
+}
+
+void LlamaCppIt::fetchMetrics() {
+    if (m_metricsInFlight) {
+        return;
+    }
+    m_metricsInFlight = true;
+    QNetworkRequest req = buildRequest(QStringLiteral("/metrics"));
+    QNetworkReply* reply = m_nam->get(req);
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        reply->deleteLater();
+        m_metricsInFlight = false;
+        int httpCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        if (reply->error() == QNetworkReply::NoError && httpCode >= 200 && httpCode < 300) {
+            QString body = QString::fromUtf8(reply->readAll());
+            auto metrics = llama_slots::parsePrometheusMetrics(body);
+            if (metrics.predictedTokensTotal.has_value()) {
+                m_snapshot.predictedTokensTotal = metrics.predictedTokensTotal;
+                m_snapshot.promptTokensTotal = metrics.promptTokensTotal;
+                m_snapshot.metricsSupported = true;
+            }
+        } else {
+            m_snapshot.metricsSupported = false;
+        }
     });
 }
 
@@ -399,6 +540,7 @@ void LlamaCppIt::handleDisconnect() {
         m_snapshot.currentTps = std::nullopt;
         m_snapshot.cacheHitRatePct = std::nullopt;
         m_snapshot.speculativeActive = std::nullopt;
+        m_tpsTracker.reset();
         // 保持 slots 结构存在并将 isActive 标记为 false，避免 UI 列表跳动
         if (m_snapshot.slots) {
             for (auto& s : *m_snapshot.slots) {
@@ -407,7 +549,11 @@ void LlamaCppIt::handleDisconnect() {
         }
         m_snapshot.anyPrefill = false;
         m_snapshot.anyDecoding = false;
-        llama_slots::resetTps(&m_tpsTimer);
+        m_snapshot.metricsSupported = false;
+        m_snapshot.predictedTokensTotal.reset();
+        m_snapshot.promptTokensTotal.reset();
+        m_metricsInFlight = false;
+        m_tpsTracker.reset();
     }
 }
 

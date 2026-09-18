@@ -46,6 +46,9 @@ struct LlmTelemetry {               // 给不出的一律 std::nullopt / null
     bool anyPrefill{false};
     bool anyDecoding{false};
     bool slotsDisabled{false};
+    std::optional<quint64> predictedTokensTotal;
+    std::optional<quint64> promptTokensTotal;
+    bool metricsSupported{false};
 };
 
 struct TelemetryPayload {           // EventBus JSON 用；Q_PROPERTY 暴露用同字段

@@ -10,7 +10,9 @@
   "entry_point": "margin_plugin_entry",
   "priority": 100,
   "permissions": [
-    "localhost-http"
+    "localhost-http",
+    "database-read",
+    "database-write"
   ],
   "settings_keys": [
     "plugins.llamapet.endpointUrl",

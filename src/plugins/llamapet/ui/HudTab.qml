@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import Margin.Ui.Primitives
+import "components"
 
 Rectangle {
     id: root
@@ -61,7 +62,7 @@ Rectangle {
             width: flick.width - (scrollIndicator.visible ? 10 : 0)
             spacing: Theme.space3
 
-            // 1. Top Header Row
+            // 1. Top Header Row with Segmented View Switcher
             RowLayout {
                 Layout.fillWidth: true
                 spacing: Theme.space2
@@ -72,8 +73,6 @@ Rectangle {
                     font.pixelSize: Theme.textBase
                     font.weight: Font.DemiBold
                 }
-
-                Item { Layout.fillWidth: true }
 
                 Rectangle {
                     radius: 4
@@ -91,7 +90,89 @@ Rectangle {
                         font.weight: Font.Medium
                     }
                 }
+
+                Item { Layout.fillWidth: true }
+
+                // Segmented Switch: 实时监控 vs 活跃度与统计
+                Rectangle {
+                    id: subViewSwitch
+                    Layout.preferredWidth: 176
+                    Layout.preferredHeight: 28
+                    implicitWidth: 176
+                    implicitHeight: 28
+                    radius: Theme.radiusSm
+                    color: "#181825"
+                    border.color: "#313244"
+                    border.width: 1
+
+                    Row {
+                        anchors.fill: parent
+                        anchors.margins: 2
+                        spacing: 2
+
+                        Rectangle {
+                            width: (parent.width - 2) / 2
+                            height: parent.height
+                            radius: 3
+                            color: ((typeof llamapet !== "undefined" && llamapet && llamapet.hudSubView === 0) || (typeof llamapet === "undefined" || !llamapet)) ? "#2563eb" : (mouseRealtime.containsMouse ? "#2089B4FA" : "transparent")
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: qsTr("Live Monitor")
+                                color: ((typeof llamapet !== "undefined" && llamapet && llamapet.hudSubView === 0) || (typeof llamapet === "undefined" || !llamapet)) ? "#FFFFFF" : Theme.fgMuted
+                                font.pixelSize: 11
+                                font.weight: Font.Medium
+                            }
+
+                            MouseArea {
+                                id: mouseRealtime
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    if (typeof llamapet !== "undefined" && llamapet) {
+                                        llamapet.hudSubView = 0;
+                                    }
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            width: (parent.width - 2) / 2
+                            height: parent.height
+                            radius: 3
+                            color: (typeof llamapet !== "undefined" && llamapet && llamapet.hudSubView === 1) ? "#2563eb" : (mouseStats.containsMouse ? "#2089B4FA" : "transparent")
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: qsTr("Activity & Stats")
+                                color: (typeof llamapet !== "undefined" && llamapet && llamapet.hudSubView === 1) ? "#FFFFFF" : Theme.fgMuted
+                                font.pixelSize: 11
+                                font.weight: Font.Medium
+                            }
+
+                            MouseArea {
+                                id: mouseStats
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    if (typeof llamapet !== "undefined" && llamapet) {
+                                        llamapet.hudSubView = 1;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
+
+            // Realtime Monitor View
+            ColumnLayout {
+                id: realtimeCol
+                Layout.fillWidth: true
+                spacing: Theme.space3
+                visible: ((typeof llamapet !== "undefined" && llamapet) ? llamapet.hudSubView === 0 : true)
 
             // 2. GPU Status Card
             MCard {
@@ -235,30 +316,97 @@ Rectangle {
                             var maxPts = root.maxHistory;
                             var stepX = w / (maxPts - 1);
                             var startOffset = maxPts - pts.length;
+                            var tension = 0.18;
 
-                            // 1. Draw VRAM curve (0 - 100%)
+                            // 1. Draw smooth VRAM curve (0 - 100%)
+                            var vramCoords = [];
+                            for (var i = 0; i < pts.length; ++i) {
+                                var vx = (startOffset + i) * stepX;
+                                var normVram = Math.min(Math.max(pts[i].vram / 100.0, 0), 1);
+                                var vy = h - normVram * (h - 6) - 3;
+                                vramCoords.push({ x: vx, y: vy });
+                            }
+
                             ctx.beginPath();
                             ctx.strokeStyle = "#00F0FF";
                             ctx.lineWidth = 1.5;
-                            for (var i = 0; i < pts.length; ++i) {
-                                var x = (startOffset + i) * stepX;
-                                var normVram = Math.min(Math.max(pts[i].vram / 100.0, 0), 1);
-                                var y = h - normVram * (h - 6) - 3;
-                                if (i === 0) ctx.moveTo(x, y);
-                                else ctx.lineTo(x, y);
+                            ctx.moveTo(vramCoords[0].x, vramCoords[0].y);
+                            for (var n = 0; n < vramCoords.length - 1; ++n) {
+                                var vp0 = (n > 0) ? vramCoords[n - 1] : vramCoords[n];
+                                var vp1 = vramCoords[n];
+                                var vp2 = vramCoords[n + 1];
+                                var vp3 = (n + 2 < vramCoords.length) ? vramCoords[n + 2] : vp2;
+
+                                var vcp1x = vp1.x + (vp2.x - vp0.x) * tension;
+                                var vcp1y = vp1.y + (vp2.y - vp0.y) * tension;
+                                var vcp2x = vp2.x - (vp3.x - vp1.x) * tension;
+                                var vcp2y = vp2.y - (vp3.y - vp1.y) * tension;
+
+                                ctx.bezierCurveTo(vcp1x, vcp1y, vcp2x, vcp2y, vp2.x, vp2.y);
                             }
                             ctx.stroke();
 
-                            // 2. Draw TPS curve (normalized to 50 t/s)
-                            ctx.beginPath();
-                            ctx.strokeStyle = "#00FF88";
-                            ctx.lineWidth = 1.5;
+                            // 2. Draw smooth TPS curve with dynamic scale and gradient area fill
+                            var maxTps = 40.0;
+                            for (var k = 0; k < pts.length; ++k) {
+                                if (pts[k].tps > maxTps) maxTps = pts[k].tps;
+                            }
+                            var tpsScale = Math.max(50.0, Math.ceil(maxTps * 1.15 / 10) * 10);
+
+                            var tpsCoords = [];
                             for (var j = 0; j < pts.length; ++j) {
                                 var tx = (startOffset + j) * stepX;
-                                var normTps = Math.min(Math.max(pts[j].tps / 50.0, 0), 1);
+                                var normTps = Math.min(Math.max(pts[j].tps / tpsScale, 0), 1);
                                 var ty = h - normTps * (h - 6) - 3;
-                                if (j === 0) ctx.moveTo(tx, ty);
-                                else ctx.lineTo(tx, ty);
+                                tpsCoords.push({ x: tx, y: ty });
+                            }
+
+                            // 2.1 Area fill
+                            if (tpsCoords.length >= 2) {
+                                ctx.beginPath();
+                                ctx.moveTo(tpsCoords[0].x, h);
+                                ctx.lineTo(tpsCoords[0].x, tpsCoords[0].y);
+                                for (var m = 0; m < tpsCoords.length - 1; ++m) {
+                                    var tp0 = (m > 0) ? tpsCoords[m - 1] : tpsCoords[m];
+                                    var tp1 = tpsCoords[m];
+                                    var tp2 = tpsCoords[m + 1];
+                                    var tp3 = (m + 2 < tpsCoords.length) ? tpsCoords[m + 2] : tp2;
+
+                                    var tcp1x = tp1.x + (tp2.x - tp0.x) * tension;
+                                    var tcp1y = tp1.y + (tp2.y - tp0.y) * tension;
+                                    var tcp2x = tp2.x - (tp3.x - tp1.x) * tension;
+                                    var tcp2y = tp2.y - (tp3.y - tp1.y) * tension;
+
+                                    ctx.bezierCurveTo(tcp1x, tcp1y, tcp2x, tcp2y, tp2.x, tp2.y);
+                                }
+                                ctx.lineTo(tpsCoords[tpsCoords.length - 1].x, h);
+                                ctx.closePath();
+
+                                var grad = ctx.createLinearGradient(0, 0, 0, h);
+                                grad.addColorStop(0, "rgba(0, 255, 136, 0.20)");
+                                grad.addColorStop(0.8, "rgba(0, 255, 136, 0.03)");
+                                grad.addColorStop(1, "rgba(0, 255, 136, 0.0)");
+                                ctx.fillStyle = grad;
+                                ctx.fill();
+                            }
+
+                            // 2.2 Smooth stroke
+                            ctx.beginPath();
+                            ctx.strokeStyle = "#00FF88";
+                            ctx.lineWidth = 1.8;
+                            ctx.moveTo(tpsCoords[0].x, tpsCoords[0].y);
+                            for (var s = 0; s < tpsCoords.length - 1; ++s) {
+                                var sp0 = (s > 0) ? tpsCoords[s - 1] : tpsCoords[s];
+                                var sp1 = tpsCoords[s];
+                                var sp2 = tpsCoords[s + 1];
+                                var sp3 = (s + 2 < tpsCoords.length) ? tpsCoords[s + 2] : sp2;
+
+                                var scp1x = sp1.x + (sp2.x - sp0.x) * tension;
+                                var scp1y = sp1.y + (sp2.y - sp0.y) * tension;
+                                var scp2x = sp2.x - (sp3.x - sp1.x) * tension;
+                                var scp2y = sp2.y - (sp3.y - sp1.y) * tension;
+
+                                ctx.bezierCurveTo(scp1x, scp1y, scp2x, scp2y, sp2.x, sp2.y);
                             }
                             ctx.stroke();
                         }
@@ -459,30 +607,38 @@ Rectangle {
                 }
             }
         }
-    }
 
-    // Modern floating dark scroll indicator
-    Rectangle {
-        id: scrollIndicator
-        anchors.right: parent.right
-        anchors.rightMargin: 4
-        anchors.top: parent.top
-        anchors.topMargin: Theme.space4
-        anchors.bottom: parent.bottom
-        anchors.bottomMargin: Theme.space4
-        width: 4
-        color: "transparent"
-        visible: flick.visibleArea.heightRatio < 1.0
-
-        Rectangle {
-            x: 0
-            y: flick.visibleArea.yPosition * parent.height
-            width: 4
-            height: Math.max(flick.visibleArea.heightRatio * parent.height, 24)
-            radius: 2
-            color: Theme.fgMuted
-            opacity: flick.moving || flick.dragging ? 0.6 : 0.25
-            Behavior on opacity { NumberAnimation { duration: 150 } }
+        // Usage & Activity Stats View
+        TokenActivityView {
+            id: activityView
+            Layout.fillWidth: true
+            visible: (typeof llamapet !== "undefined" && llamapet && llamapet.hudSubView === 1)
         }
     }
+}
+
+// Modern floating dark scroll indicator
+Rectangle {
+    id: scrollIndicator
+    anchors.right: parent.right
+    anchors.rightMargin: 4
+    anchors.top: parent.top
+    anchors.topMargin: Theme.space4
+    anchors.bottom: parent.bottom
+    anchors.bottomMargin: Theme.space4
+    width: 4
+    color: "transparent"
+    visible: flick.visibleArea.heightRatio < 1.0
+
+    Rectangle {
+        x: 0
+        y: flick.visibleArea.yPosition * parent.height
+        width: 4
+        height: Math.max(flick.visibleArea.heightRatio * parent.height, 24)
+        radius: 2
+        color: Theme.fgMuted
+        opacity: flick.moving || flick.dragging ? 0.6 : 0.25
+        Behavior on opacity { NumberAnimation { duration: 150 } }
+    }
+}
 }

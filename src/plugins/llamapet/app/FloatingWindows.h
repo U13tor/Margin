@@ -18,6 +18,8 @@ class DockBehavior;
 class FloatingWindows : public QObject {
     Q_OBJECT
     Q_PROPERTY(QString skinJson READ skinJson CONSTANT)
+    Q_PROPERTY(int currentForm READ currentFormInt NOTIFY formChanged)
+    Q_PROPERTY(bool clickThrough READ isClickThrough NOTIFY clickThroughChanged)
 
 public:
     enum class Form {
@@ -43,12 +45,13 @@ public:
 
     void showCurrent();
     void hideCurrent();
-    void toggleVisibility();
+    Q_INVOKABLE void toggleVisibility();
 
-    void setClickThrough(bool enabled);
-    bool isClickThrough() const { return m_clickThrough; }
+    Q_INVOKABLE void setClickThrough(bool enabled);
+    Q_INVOKABLE bool isClickThrough() const { return m_clickThrough; }
 
     Form currentForm() const { return m_currentForm; }
+    int currentFormInt() const { return static_cast<int>(m_currentForm); }
     QQuickWindow* currentWindow() const;
     QQuickWindow* miniPetWindow() const { return m_miniPetWindow; }
     QQuickWindow* dockWindow() const { return m_dockWindow; }

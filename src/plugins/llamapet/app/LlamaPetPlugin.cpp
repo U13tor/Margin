@@ -3,6 +3,8 @@
 #include "core/LlamaCppIt.h"
 #include "core/OllamaIt.h"
 #include "core/OpenAiIt.h"
+#include "core/TokenStore.h"
+#include "Margin/Database.h"
 #include "Margin/EventBus.h"
 #include "Margin/HostServices.h"
 #include "Margin/Logger.h"
@@ -24,7 +26,7 @@ constexpr const char* kVersion = "0.1.0";
 constexpr const char* kTag = "llamapet";
 constexpr int kHotkeyToggleId = 1;
 constexpr const char* kRestartCmdTemplate =
-    "# 请按你的实际部署调整后执行：\n# llama-server -m <model_path> --port 8080 --slots --slot-save-path ./slot-state";
+    "# 请按你的实际部署调整后执行：\n# llama-server -m <model_path> --port 8080 --slots --metrics --slot-save-path ./slot-state";
 }
 
 LlamaPetPlugin::LlamaPetPlugin(QObject* parent) : QObject(parent) {
@@ -83,6 +85,20 @@ Result<void, std::string> LlamaPetPlugin::onLoad(const PluginContext& ctx) {
     // 2. 采样与编排服务初始化
     m_service = std::make_unique<TelemetryService>(this);
     m_service->setConfig(cfg);
+
+    // Token 存储与持久化初始化 (SQLite)
+    m_database = m_ctx.host ? m_ctx.host->database() : nullptr;
+    if (m_database) {
+        m_tokenStore = std::make_unique<TokenStore>();
+        if (m_tokenStore->ensureSchema(*m_database)) {
+            if (m_ctx.host) {
+                m_ctx.host->logger().info(
+                    QString::fromLatin1(kTag),
+                    QStringLiteral("llamapet_token_daily schema ready"));
+            }
+        }
+        m_service->setTokenStore(m_tokenStore.get(), m_database);
+    }
 
     // 硬件采集层初始化 (NVML / SMI)
     auto hal = createHal(cfg.hardware);
@@ -164,6 +180,9 @@ void LlamaPetPlugin::applyConfig(const EngineConfig& cfg) {
 }
 
 void LlamaPetPlugin::onUnload() {
+    if (m_tokenStore && m_database) {
+        m_tokenStore->flush(*m_database);
+    }
     if (m_service) {
         m_service->stop();
     }
@@ -310,13 +329,29 @@ void LlamaPetPlugin::onTrayItemClicked(const std::string& id) {
 }
 
 void LlamaPetPlugin::openDetail() {
+    setHudSubView(0);
     auto* qml = m_ctx.host ? m_ctx.host->qml() : nullptr;
     auto* engine = qml ? qml->engine() : nullptr;
     if (engine) {
         QVariant dashboardVar = engine->rootContext()->contextProperty(QStringLiteral("dashboardRoot"));
         QObject* dashboard = dashboardVar.value<QObject*>();
         if (dashboard) {
-            QMetaObject::invokeMethod(dashboard, "openDashboard",
+            QMetaObject::invokeMethod(dashboard, "openDashboardTab",
+                Qt::AutoConnection,
+                Q_ARG(QVariant, QVariant::fromValue(QStringLiteral("llamapet"))));
+        }
+    }
+}
+
+void LlamaPetPlugin::openStats() {
+    setHudSubView(1);
+    auto* qml = m_ctx.host ? m_ctx.host->qml() : nullptr;
+    auto* engine = qml ? qml->engine() : nullptr;
+    if (engine) {
+        QVariant dashboardVar = engine->rootContext()->contextProperty(QStringLiteral("dashboardRoot"));
+        QObject* dashboard = dashboardVar.value<QObject*>();
+        if (dashboard) {
+            QMetaObject::invokeMethod(dashboard, "openDashboardTab",
                 Qt::AutoConnection,
                 Q_ARG(QVariant, QVariant::fromValue(QStringLiteral("llamapet"))));
         }
@@ -419,6 +454,31 @@ void LlamaPetPlugin::setAutoDockHide(bool autoHide) {
         m_ctx.host->settings().set(QStringLiteral("plugins.llamapet.autoDockHide"), autoHide);
         m_ctx.host->tray().refreshPluginMenu(QStringLiteral("llamapet"));
     }
+}
+
+QVariantMap LlamaPetPlugin::tokenSummary() {
+    if (m_tokenStore && m_database) {
+        return m_tokenStore->summary(*m_database).toVariantMap();
+    }
+    return ActivitySummary{}.toVariantMap();
+}
+
+QVariantList LlamaPetPlugin::tokenHeatmap() {
+    if (m_tokenStore && m_database) {
+        return m_tokenStore->yearlyHeatmap(*m_database);
+    }
+    return QVariantList{};
+}
+
+QVariantList LlamaPetPlugin::tokenTrends(int days) {
+    if (m_tokenStore && m_database) {
+        return m_tokenStore->recentTrends(*m_database, days);
+    }
+    return QVariantList{};
+}
+
+bool LlamaPetPlugin::isUsingMetrics() const {
+    return m_service ? m_service->isUsingMetrics() : false;
 }
 
 } // namespace Margin::Plugins::LlamaPet

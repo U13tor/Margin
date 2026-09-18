@@ -1,4 +1,4 @@
-find_package(Qt6 6.7 REQUIRED COMPONENTS Core Gui Quick Network Test)
+find_package(Qt6 6.7 REQUIRED COMPONENTS Core Gui Quick Network Sql Test)
 
 set(_fixtures_dir "${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 
@@ -83,6 +83,8 @@ add_executable(tst_telemetry_service
     "${CMAKE_CURRENT_SOURCE_DIR}/../core/EmotionEngine.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../core/Health.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../core/EngineConfig.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../core/TokenTracker.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../core/TokenStore.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../core/HalProvider.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../core/NvmlHal.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../core/SmiHal.cpp"
@@ -134,6 +136,8 @@ add_executable(tst_contributors
     "${CMAKE_CURRENT_SOURCE_DIR}/../app/FloatingWindows.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../app/HotkeyManager.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../app/ClickThrough.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../core/TokenTracker.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../core/TokenStore.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../core/LlamaCppIt.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../core/OllamaIt.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../core/OpenAiIt.cpp"
@@ -158,5 +162,25 @@ target_include_directories(tst_contributors PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}
 set_target_properties(tst_contributors PROPERTIES AUTOMOC ON)
 add_test(NAME tst_contributors COMMAND tst_contributors)
 set_tests_properties(tst_contributors PROPERTIES LABELS "unit")
+
+# 12. tst_token_store
+add_executable(tst_token_store
+    unit/tst_token_store.cpp
+    "${CMAKE_CURRENT_SOURCE_DIR}/../core/TokenTracker.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../core/TokenStore.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../core/LlamaCppIt.cpp"
+)
+target_link_libraries(tst_token_store PRIVATE
+    margin_plugin_api
+    Qt6::Core
+    Qt6::Network
+    Qt6::Sql
+    Qt6::Test
+)
+target_include_directories(tst_token_store PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/..")
+set_target_properties(tst_token_store PROPERTIES AUTOMOC ON)
+add_test(NAME tst_token_store COMMAND tst_token_store)
+set_tests_properties(tst_token_store PROPERTIES LABELS "unit")
+
 
 

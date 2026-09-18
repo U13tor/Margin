@@ -11,6 +11,8 @@ add_library(margin_llamapet SHARED
     core/OpenAiIt.cpp
     core/EmotionEngine.cpp
     core/Health.cpp
+    core/TokenTracker.cpp
+    core/TokenStore.cpp
     app/TelemetryService.cpp
     app/ClickThrough.cpp
     app/HotkeyManager.cpp

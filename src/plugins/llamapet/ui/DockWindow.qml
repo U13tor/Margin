@@ -15,7 +15,8 @@ Window {
         if (typeof llamapet !== "undefined" && llamapet) {
             llamapet.openDetail();
         } else if (typeof dashboardRoot !== "undefined" && dashboardRoot) {
-            dashboardRoot.openDashboard("llamapet");
+            if (dashboardRoot.openDashboardTab) dashboardRoot.openDashboardTab("llamapet");
+            else dashboardRoot.openDashboard();
         }
     }
 

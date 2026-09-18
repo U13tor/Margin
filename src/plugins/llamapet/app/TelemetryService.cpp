@@ -1,6 +1,8 @@
 #include "TelemetryService.h"
 #include "core/Health.h"
 #include "core/LlamaCppIt.h"
+#include "core/TokenStore.h"
+#include "Margin/Database.h"
 #include <QVariantMap>
 
 namespace Margin::Plugins::LlamaPet {
@@ -11,6 +13,14 @@ TelemetryService::TelemetryService(QObject* parent) : QObject(parent) {
 
 TelemetryService::~TelemetryService() {
     stop();
+    if (m_tokenStore && m_db) {
+        m_tokenStore->flush(*m_db);
+    }
+}
+
+void TelemetryService::setTokenStore(TokenStore* store, Margin::Database* db) {
+    m_tokenStore = store;
+    m_db = db;
 }
 
 void TelemetryService::setHalProvider(std::unique_ptr<HalProvider> hal) {
@@ -75,6 +85,19 @@ void TelemetryService::tick() {
         m_idleTicks = 0;
     } else {
         m_idleTicks++;
+    }
+
+    // 3.1 Token 增量计算与累加持久化 (双通道高精度)
+    TokenDelta delta = m_tokenTracker.process(inf);
+    if (m_tokenStore && (delta.completionTokens > 0 || delta.promptTokens > 0 || delta.activeSeconds > 0)) {
+        m_tokenStore->recordTokens(delta.promptTokens, delta.completionTokens, delta.activeSeconds);
+    }
+    m_flushTickCount++;
+    if (m_flushTickCount >= 5) {
+        m_flushTickCount = 0;
+        if (m_tokenStore && m_db) {
+            m_tokenStore->flush(*m_db);
+        }
     }
 
     // 4. 显存百分比换算与组装 EmotionInputs

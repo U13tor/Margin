@@ -12,6 +12,7 @@ private Q_SLOTS:
     void testFixtureSlotsParsingMatchesSpec();
     void testNumericCacheTokens();
     void testTpsDiffCalculation();
+    void testTpsTracker();
     void testEmptyAndZeroPrompt();
     void testParseHealthWithFixture();
     void testParsePropsWithFixture();
@@ -118,6 +119,67 @@ void TstSlotsParse::testTpsDiffCalculation() {
     // 时间间隔过短 (< 200ms) 返回 nullopt
     auto tpsShort = calcTps(timer, 25);
     QVERIFY(!tpsShort.has_value());
+}
+
+void TstSlotsParse::testTpsTracker() {
+    TpsTracker tracker;
+
+    SlotRaw s0;
+    s0.id = 0;
+    s0.isActive = true;
+    s0.isDecoding = true;
+    s0.decodedTokens = 10;
+
+    // 1. 首次调用记录基准，由于此前 smoothedTps 为 0，返回 nullopt
+    auto res0 = tracker.update({s0}, true, true, false);
+    QVERIFY(!res0.has_value());
+
+    // 2. 210ms 后生成 20 个 token (decodedTokens = 30)
+    QTest::qSleep(210);
+    s0.decodedTokens = 30;
+    auto res1 = tracker.update({s0}, true, true, false);
+    QVERIFY(res1.has_value());
+    // 首次从空闲启动：应直接响应瞬时 TPS (20 / ~0.21s ≈ 95 t/s)，无滞后延迟
+    float initialTps = *res1;
+    QVERIFY(initialTps > 50.0f);
+
+    // 3. 后续采样做低通 EMA 平滑滤波
+    QTest::qSleep(210);
+    s0.decodedTokens = 40; // 增量较小 (10 tokens)
+    auto res2 = tracker.update({s0}, true, true, false);
+    QVERIFY(res2.has_value());
+    // EMA 平滑后的值在 [10/0.21, initialTps] 之间
+    QVERIFY(*res2 > 0.0f);
+
+    // 4. 槽位完成任务并重置 (s0.decodedTokens = 0, isActive = false)，同时新槽位 s1 启动 (15 tokens)
+    // 验证不会因 s0 归零发生负差跌落，单调增量累加正常工作
+    QTest::qSleep(210);
+    s0.isActive = false;
+    s0.isDecoding = false;
+    s0.decodedTokens = 0;
+
+    SlotRaw s1;
+    s1.id = 1;
+    s1.isActive = true;
+    s1.isDecoding = true;
+    s1.decodedTokens = 15;
+
+    auto res3 = tracker.update({s0, s1}, true, true, false);
+    QVERIFY(res3.has_value());
+    QVERIFY(*res3 > 0.0f);
+    // 验证内部单调计数器累加正确: 20 (s0初增量) + 10 (s0次增量) + 15 (s1增量) = 45
+    QCOMPARE(tracker.monotonicTotal, 45ull);
+
+    // 5. 任务全部结束进入完全空闲：验证软着陆优雅衰减 (Soft Decay)，杜绝垂直砸地
+    QTest::qSleep(210);
+    s1.isActive = false;
+    s1.isDecoding = false;
+    s1.decodedTokens = 0;
+    auto res4 = tracker.update({s0, s1}, false, false, false);
+    QVERIFY(res4.has_value());
+    // 衰减为此前值的 ~50%，大于 0 但平稳下降
+    QVERIFY(*res4 < *res3);
+    QVERIFY(*res4 > 0.0f);
 }
 
 void TstSlotsParse::testEmptyAndZeroPrompt() {

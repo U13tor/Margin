@@ -6,13 +6,21 @@
 #include "core/HalProvider.h"
 #include "core/ItProvider.h"
 
+#include "core/TokenTracker.h"
+
 #include <QDateTime>
 #include <QJsonObject>
 #include <QObject>
 #include <QTimer>
 #include <memory>
 
+namespace Margin {
+class Database;
+}
+
 namespace Margin::Plugins::LlamaPet {
+
+class TokenStore;
 
 class TelemetryService : public QObject {
     Q_OBJECT
@@ -49,12 +57,14 @@ public:
 
     void setHalProvider(std::unique_ptr<HalProvider> hal);
     void setItProvider(std::unique_ptr<ItProvider> it);
+    void setTokenStore(TokenStore* store, Margin::Database* db);
     void setConfig(const EngineConfig& cfg);
     const EngineConfig& config() const { return m_config; }
 
     bool isRunning() const;
     const TelemetryPayload& currentPayload() const { return m_payload; }
     QJsonObject currentPayloadJson() const;
+    bool isUsingMetrics() const { return m_tokenTracker.isUsingMetrics(); }
 
     // 属性读取接口
     float vramPercent() const;
@@ -103,6 +113,10 @@ private:
     mutable QVariantList m_lastSlotsList;
 
     QTimer m_timer;
+    TokenTracker m_tokenTracker;
+    TokenStore* m_tokenStore{nullptr};
+    Margin::Database* m_db{nullptr};
+    int m_flushTickCount{0};
 };
 
 } // namespace Margin::Plugins::LlamaPet

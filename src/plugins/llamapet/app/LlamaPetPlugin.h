@@ -15,7 +15,13 @@
 #include <memory>
 #include <string>
 
+namespace Margin {
+class Database;
+}
+
 namespace Margin::Plugins::LlamaPet {
+
+class TokenStore;
 
 class LlamaPetPlugin : public QObject,
                        public PluginInterface,
@@ -49,8 +55,11 @@ public:
     QList<TrayItem> contributeTrayItems() override;
     void onTrayItemClicked(const std::string& id) override;
 
+    Q_PROPERTY(int hudSubView READ hudSubView WRITE setHudSubView NOTIFY hudSubViewChanged)
+
     // QML 交互接口
     Q_INVOKABLE void openDetail();
+    Q_INVOKABLE void openStats();
     Q_INVOKABLE void openSettings();
     Q_INVOKABLE void copyRestartCommand();
     Q_INVOKABLE void clearIdleKv();
@@ -59,16 +68,37 @@ public:
     Q_INVOKABLE void setClickThrough(bool through);
     Q_INVOKABLE void setAutoDockHide(bool autoHide);
 
+    // Token 统计与活动热力图接口
+    Q_INVOKABLE QVariantMap tokenSummary();
+    Q_INVOKABLE QVariantList tokenHeatmap();
+    Q_INVOKABLE QVariantList tokenTrends(int days = 7);
+    Q_INVOKABLE bool isUsingMetrics() const;
+
     TelemetryService* telemetryService() { return m_service.get(); }
     FloatingWindows* floatingWindows() { return m_floatingWindows.get(); }
     DockBehavior* dockBehavior() { return m_dockBehavior.get(); }
     HotkeyManager* hotkeyManager() { return m_hotkeyManager.get(); }
+    TokenStore* tokenStore() { return m_tokenStore.get(); }
+
+    int hudSubView() const { return m_hudSubView; }
+    void setHudSubView(int view) {
+        if (m_hudSubView != view) {
+            m_hudSubView = view;
+            Q_EMIT hudSubViewChanged();
+        }
+    }
+
+Q_SIGNALS:
+    void hudSubViewChanged();
 
 private:
     void applyConfig(const EngineConfig& cfg);
 
     PluginContext m_ctx;
     bool m_alwaysOnTop{true};
+    int m_hudSubView{0};
+    Margin::Database* m_database{nullptr};
+    std::unique_ptr<TokenStore> m_tokenStore;
     std::unique_ptr<TelemetryService> m_service;
     std::unique_ptr<DockBehavior> m_dockBehavior;
     std::unique_ptr<FloatingWindows> m_floatingWindows;

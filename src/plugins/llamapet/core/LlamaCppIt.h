@@ -53,12 +53,28 @@ struct PropsInfo {
     std::optional<quint32> totalSlots;
 };
 
+struct TpsTracker {
+    QElapsedTimer timer;
+    std::unordered_map<quint32, quint64> slotLastDecoded;
+    float smoothedTps{0.0f};
+    quint64 monotonicTotal{0};
+
+    void reset();
+    std::optional<float> update(const QList<SlotRaw>& slots, bool anyActive, bool anyDecoding, bool anyPrefill);
+};
+
 QList<SlotRaw> parseSlots(const QJsonDocument& doc);
 SlotsAnalysis analyzeSlots(const QList<SlotRaw>& rawSlots);
 std::optional<float> calcTps(QElapsedTimer& timer, quint64 totalDecoded);
 void resetTps(const QElapsedTimer* timer);
 bool parseHealth(const QString& body);
 PropsInfo parseProps(const QString& body);
+
+struct MetricsInfo {
+    std::optional<quint64> predictedTokensTotal;
+    std::optional<quint64> promptTokensTotal;
+};
+MetricsInfo parsePrometheusMetrics(const QString& body);
 
 } // namespace llama_slots
 
@@ -83,6 +99,7 @@ public:
 private:
     void triggerAsyncPoll();
     void fetchSlots();
+    void fetchMetrics();
     void handleDisconnect();
     QNetworkRequest buildRequest(const QString& path) const;
 
@@ -91,9 +108,10 @@ private:
     bool m_hasMock{false};
     LlmTelemetry m_mockTelemetry;
     LlmTelemetry m_snapshot;
-    QElapsedTimer m_tpsTimer;
+    llama_slots::TpsTracker m_tpsTracker;
     std::unique_ptr<QNetworkAccessManager> m_nam;
     bool m_inFlight{false};
+    bool m_metricsInFlight{false};
     int m_failCount{0};
     static std::atomic<bool> s_slotsAuthWarned;
 };
